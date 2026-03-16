@@ -42,23 +42,23 @@ docs/FrameworkArchitecture.md
 
 ## Repository Structure
 
-SeleniumAutomationFramework
-│
-├── src
-│   ├── Framework.Core
-│   ├── Framework.API
-│   ├── Framework.Data
-│   └── Framework.Reporting
-│
-├── tests
-│   ├── UITests
-│   └── APITests
-│
-├── config
-├── resources
-├── reports
-├── ci
-└── docs
+    SeleniumAutomationFramework
+    │
+    ├── src
+    │   ├── Framework.Core
+    │   ├── Framework.API
+    │   ├── Framework.Data
+    │   └── Framework.Reporting
+    │
+    ├── tests
+    │   ├── UITests
+    │   └── APITests
+    │
+    ├── config
+    ├── resources
+    ├── reports
+    ├── ci
+    └── docs
 
 Folder purposes:
 
@@ -117,7 +117,7 @@ dotnet test
 
 ---
 
-## 🔧 CI/CD
+## CI/CD
 
 The framework supports automated execution through **GitHub Actions**.
 
