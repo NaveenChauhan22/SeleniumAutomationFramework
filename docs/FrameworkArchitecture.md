@@ -2,7 +2,6 @@
 
 ## Architecture & Setup Guide
 
-Author: Naveen Chauhan\
 Project: SeleniumAutomationFramework
 
 ------------------------------------------------------------------------

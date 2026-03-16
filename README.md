@@ -129,14 +129,7 @@ Automation pipelines will:
 
 Pipeline configurations are located in:
 
-ci/
-
----
-
-## Contributors
-
-Naveen Chauhan — Framework Architecture  
-Aman — Framework Implementation  
+ci/ 
 
 ---
 
@@ -157,7 +150,3 @@ Phase 2
 - Mobile automation
 
 ---
-
-## License
-
-Internal framework for QA automation experimentation and learning.
