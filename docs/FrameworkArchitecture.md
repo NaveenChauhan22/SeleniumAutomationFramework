@@ -356,11 +356,6 @@ git branch -M main
 git push -u origin main
 ```
 
-Add collaborators:
-
--   Aman
--   Neeraj
-
 ------------------------------------------------------------------------
 
 # 13. Next Implementation Steps
