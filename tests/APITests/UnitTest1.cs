@@ -1,15 +1,29 @@
-﻿namespace APITests;
+﻿using Allure.NUnit;
+using Allure.NUnit.Attributes;
+using FluentAssertions;
+using Framework.API;
+using Framework.Reporting;
 
-public class Tests
+namespace APITests;
+
+[AllureNUnit]
+[AllureParentSuite("APITests")]
+[AllureSuite("Api Client")]
+[AllureFeature("HTTP")]
+public class ApiClientTests : ApiTestBase
 {
-    [SetUp]
-    public void Setup()
-    {
-    }
-
     [Test]
-    public void Test1()
+    [Priority(TestPriority.Medium)]
+    [AllureStory("Successful GET request")]
+    public async Task GetRequest_ShouldReturnSuccessfulResponse()
     {
-        Assert.Pass();
+        using var client = new ApiClient("https://postman-echo.com/");
+        var response = await client.SendAsync(
+            new ApiRequestBuilder()
+                .WithMethod(HttpMethod.Get)
+                .WithEndpoint("get?framework=selenium")
+                .Build());
+
+        response.IsSuccessStatusCode.Should().BeTrue();
     }
 }

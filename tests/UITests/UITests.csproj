@@ -23,7 +23,36 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Framework.Core\Framework.Core.csproj" />
+    <ProjectReference Include="..\..\src\Framework.Data\Framework.Data.csproj" />
+    <ProjectReference Include="..\..\src\Framework.Reporting\Framework.Reporting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Pages\**\*.cs" Link="Pages\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Framework.Reporting\AllureHooks.cs" Link="Infrastructure\AllureHooks.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\config\appsettings.json" Link="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\config\allureConfig.json" Link="allureConfig.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\resources\testdata\loginData.json" Link="TestData\loginData.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\resources\testdata\homePageData.json" Link="TestData\homePageData.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\resources\testdata\EventData.xlsx" Link="TestData\EventData.xlsx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

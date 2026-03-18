@@ -1,0 +1,36 @@
+{
+  "validCredentials": {
+    "email": "selenium@example.com",
+    "password": "selenium@123"
+  },
+  "invalidEmailScenario": {
+    "email": "not-a-valid-email",
+    "password": "somepassword",
+    "expectedEmailValidationError": "Enter a valid email",
+    "expectedUrlContains": "/login"
+  },
+  "shortPasswordScenario": {
+    "email": "selenium@example.com",
+    "password": "abc",
+    "expectedPasswordValidationError": "Password must be at least 6 characters",
+    "expectedUrlContains": "/login"
+  },
+  "emptyFieldsScenario": {
+    "expectedEmailValidationError": "Enter a valid email",
+    "expectedPasswordValidationError": "Password must be at least 6 characters",
+    "expectedUrlContains": "/login"
+  },
+  "wrongPasswordScenario": {
+    "password": "wrongpassword123",
+    "expectedUrlContains": "/login"
+  },
+  "unregisteredEmailScenario": {
+    "email": "nonexistent@example.com",
+    "password": "password123",
+    "expectedUrlContains": "/login"
+  },
+  "assertions": {
+    "homePageDomain": "eventhub.rahulshettyacademy.com",
+    "loginPagePath": "/login"
+  }
+}
