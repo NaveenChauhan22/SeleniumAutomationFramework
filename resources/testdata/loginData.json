@@ -1,33 +1,29 @@
 {
   "validCredentials": {
-    "email": "selenium@example.com",
-    "password": "selenium@123"
+    "email": "${TEST_USER_EMAIL}",
+    "password": "${TEST_USER_PASSWORD}"
   },
   "invalidEmailScenario": {
     "email": "not-a-valid-email",
     "password": "somepassword",
-    "expectedEmailValidationError": "Enter a valid email",
-    "expectedUrlContains": "/login"
+    "expectedEmailValidationError": "Enter a valid email"
   },
   "shortPasswordScenario": {
-    "email": "selenium@example.com",
+    "email": "abc@example.com",
     "password": "abc",
-    "expectedPasswordValidationError": "Password must be at least 6 characters",
-    "expectedUrlContains": "/login"
+    "expectedPasswordValidationError": "Password must be at least 6 characters"
   },
   "emptyFieldsScenario": {
     "expectedEmailValidationError": "Enter a valid email",
-    "expectedPasswordValidationError": "Password must be at least 6 characters",
-    "expectedUrlContains": "/login"
+    "expectedPasswordValidationError": "Password must be at least 6 characters"
   },
   "wrongPasswordScenario": {
-    "password": "wrongpassword123",
-    "expectedUrlContains": "/login"
+    "email": "abc@example.com",
+    "password": "wrongpassword123"
   },
   "unregisteredEmailScenario": {
     "email": "nonexistent@example.com",
-    "password": "password123",
-    "expectedUrlContains": "/login"
+    "password": "password123"
   },
   "assertions": {
     "homePageDomain": "eventhub.rahulshettyacademy.com",

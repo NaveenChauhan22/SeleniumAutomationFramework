@@ -1,6 +1,6 @@
 {
     "allure": {
-        "directory": "../../../../../reports/allure-results",
+        "directory": "reports/allure-results",
         "title": "Selenium Automation Framework"
     }
 }

@@ -32,12 +32,38 @@ public static class AllureBootstrap
                 return;
             }
 
-            RuntimeContext.StartTime = DateTimeOffset.UtcNow;
-            Directory.CreateDirectory(ResultsDirectory);
-            Directory.CreateDirectory(ReportDirectory);
+            // RuntimeContext.StartTime is initialized in RuntimeContext static constructor
+
+            // Ensure parent directories exist with proper error handling
+            try
+            {
+                var resultsDir = ResultsDirectory;
+                var reportDir = ReportDirectory;
+
+                // Create directories explicitly with parent path validation
+                Directory.CreateDirectory(Path.GetDirectoryName(resultsDir) ?? resultsDir);
+                Directory.CreateDirectory(resultsDir);
+                Directory.CreateDirectory(Path.GetDirectoryName(reportDir) ?? reportDir);
+                Directory.CreateDirectory(reportDir);
+
+                Log.Debug("Initialized Allure directories: Results={ResultsDirectory}, Report={ReportDirectory}",
+                    resultsDir, reportDir);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to create Allure directories");
+                throw;
+            }
 
             PreserveHistory();
-            AllureLifecycle.Instance.CleanupResultDirectory();
+            try
+            {
+                AllureLifecycle.Instance.CleanupResultDirectory();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Warning during AllureLifecycle cleanup - proceeding with initialization");
+            }
             PreserveHistory();
 
             WriteCategories();
@@ -59,6 +85,11 @@ public static class AllureBootstrap
 
             var endTime = DateTimeOffset.UtcNow;
             WriteEnvironmentInfo(RuntimeContext.StartTime, endTime);
+
+            // Generate HTML report once per run
+            var htmlReportPath = ReportHelper.GenerateHtmlReport();
+            Log.Information("Generated HTML execution report at {ReportPath}", htmlReportPath);
+
             GenerateReportIfPossible();
             _initialized = false;
         }

@@ -27,6 +27,9 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\Framework.Reporting\AllureHooks.cs" Link="Infrastructure\AllureHooks.cs" />
+    <None Include="..\..\config\appsettings.json" Link="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="..\..\config\allureConfig.json" Link="allureConfig.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

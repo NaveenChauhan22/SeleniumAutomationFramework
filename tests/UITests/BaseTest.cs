@@ -23,9 +23,9 @@ public abstract class BaseTest
     private string _priority = "Unspecified";
     private string _suiteName = string.Empty;
 
-    protected string ApplicationBaseUrl => ConfigManager.GetString("TestSettings:BaseUrl", "https://eventhub.rahulshettyacademy.com");
-    protected string LoginUrl => ConfigManager.GetString("TestSettings:AppUrl", $"{ApplicationBaseUrl}/login");
-    protected string ConfiguredBrowser => ConfigManager.GetString("TestSettings:Browser", "chrome");
+    protected string ApplicationBaseUrl => ConfigManager.GetString("TestSettings:BaseUrl");
+    protected string LoginUrl => ConfigManager.GetString("TestSettings:AppUrl");
+    protected string ConfiguredBrowser => ConfigManager.GetString("TestSettings:Browser");
 
     [SetUp]
     public void SetUp()
@@ -61,7 +61,7 @@ public abstract class BaseTest
                 $"Error: {ex.Message}", ex);
         }
 
-        Wait = new WaitHelper(Driver, ConfigManager.GetInt("TestSettings:ExplicitWaitSeconds", 15));
+        Wait = new WaitHelper(Driver, ConfigManager.GetInt("TestSettings:ExplicitWaitSeconds"));
 
         Driver.Navigate().GoToUrl(LoginUrl);
         Wait.WaitForPageLoaded();
@@ -78,8 +78,13 @@ public abstract class BaseTest
         var loginData = LoadTestData<LoginTestData>("loginData.json");
 
         Assert.That(loginData, Is.Not.Null, "login test data must be valid JSON");
-        Assert.That(loginData!.ValidCredentials.Email, Is.Not.Null.And.Not.Empty, "validCredentials.email is required in login data file");
-        Assert.That(loginData.ValidCredentials.Password, Is.Not.Null.And.Not.Empty, "validCredentials.password is required in login data file");
+
+        // validCredentials are now loaded from environment variables (TEST_USER_EMAIL, TEST_USER_PASSWORD)
+        // If not set, an InvalidOperationException is thrown with helpful instructions
+        Assert.That(loginData!.ValidCredentials.Email, Is.Not.Null.And.Not.Empty,
+            "validCredentials.email is required - must be set via TEST_USER_EMAIL environment variable");
+        Assert.That(loginData.ValidCredentials.Password, Is.Not.Null.And.Not.Empty,
+            "validCredentials.password is required - must be set via TEST_USER_PASSWORD environment variable");
 
         return loginData;
     }
@@ -89,8 +94,8 @@ public abstract class BaseTest
         Logger.Information("[UI] Loading home page assertion test data");
         var homePageData = LoadTestData<HomePageAssertionData>("homePageData.json");
 
-        Assert.That(homePageData.Heading.ExpectedHeadingContains, Is.Not.Null.And.Not.Empty,
-            "heading.expectedHeadingContains is required in homePageData.json");
+        Assert.That(homePageData.HomePageHeading.ExpectedHeading, Is.Not.Null.And.Not.Empty,
+            "homePageHeading.expectedHeading is required in homePageData.json");
         Assert.That(homePageData.Navigation.EventsPath, Is.Not.Null.And.Not.Empty,
             "navigation.eventsPath is required in homePageData.json");
         Assert.That(homePageData.Navigation.BookingsPath, Is.Not.Null.And.Not.Empty,
@@ -255,8 +260,7 @@ public abstract class BaseTest
                 errorMessage,
                 screenshotPath);
 
-            var reportPath = ReportHelper.GenerateHtmlReport();
-            TestContext.AddTestAttachment(reportPath, "HTML Execution Report");
+            // Report is generated once per test run in global teardown (AllureBootstrap.FinalizeRun)
             Logger.Information("[UI] Test {TestName} finished with status {Status} in {DurationMs} ms",
                 TestContext.CurrentContext.Test.Name,
                 outcome,
@@ -306,7 +310,6 @@ public abstract class BaseTest
             public string Email { get; init; } = string.Empty;
             public string Password { get; init; } = string.Empty;
             public string ExpectedEmailValidationError { get; init; } = string.Empty;
-            public string ExpectedUrlContains { get; init; } = string.Empty;
         }
 
         public sealed class ShortPasswordScenarioData
@@ -314,27 +317,26 @@ public abstract class BaseTest
             public string Email { get; init; } = string.Empty;
             public string Password { get; init; } = string.Empty;
             public string ExpectedPasswordValidationError { get; init; } = string.Empty;
-            public string ExpectedUrlContains { get; init; } = string.Empty;
         }
 
         public sealed class EmptyFieldsScenarioData
         {
             public string ExpectedEmailValidationError { get; init; } = string.Empty;
             public string ExpectedPasswordValidationError { get; init; } = string.Empty;
-            public string ExpectedUrlContains { get; init; } = string.Empty;
         }
 
         public sealed class WrongPasswordScenarioData
         {
+
+            public string Email { get; init; } = string.Empty;
             public string Password { get; init; } = string.Empty;
-            public string ExpectedUrlContains { get; init; } = string.Empty;
         }
 
         public sealed class UnregisteredEmailScenarioData
         {
             public string Email { get; init; } = string.Empty;
             public string Password { get; init; } = string.Empty;
-            public string ExpectedUrlContains { get; init; } = string.Empty;
+
         }
 
         public sealed class AssertionData
@@ -346,20 +348,19 @@ public abstract class BaseTest
 
     protected sealed class HomePageAssertionData
     {
-        public HeadingData Heading { get; init; } = new();
+        public HeadingData HomePageHeading { get; init; } = new();
         public FeaturedEventsData FeaturedEvents { get; init; } = new();
         public NavigationData Navigation { get; init; } = new();
 
         public sealed class HeadingData
         {
-            public string ExpectedHeadingContains { get; init; } = string.Empty;
+            public string ExpectedHeading { get; init; } = string.Empty;
         }
 
         public sealed class FeaturedEventsData
         {
             public int MinimumCardCount { get; init; } = 1;
-            public bool RequireTitleAndPrice { get; init; } = true;
-            public bool RequireBookNowLink { get; init; } = true;
+            public string[] RequiredFields { get; init; } = Array.Empty<string>();
         }
 
         public sealed class NavigationData

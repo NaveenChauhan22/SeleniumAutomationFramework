@@ -12,11 +12,25 @@ namespace Framework.Core.Driver;
 
 /// <summary>
 /// Thread-safe factory and registry for Selenium <see cref="OpenQA.Selenium.IWebDriver"/> instances.
-/// Browser type is resolved from the <c>TestSettings__Browser</c> environment variable (CI
-/// override) or the <c>TestSettings:Browser</c> config key, defaulting to Chrome.
-/// Headless mode, page-load timeout, and script timeout are similarly configurable.
-/// Call <see cref="InitializeDriver"/> once per test thread and <see cref="QuitDriver"/> in
-/// teardown; <see cref="GetDriver"/> retrieves the current thread's instance.
+/// 
+/// BROWSER CONFIGURATION:
+/// - Supported browsers: chrome (default), edge, firefox
+/// - Set browser via environment variable: TestSettings__Browser=edge
+/// - Or configure in appsettings.json: TestSettings:Browser
+/// - Or set in .env file: TestSettings__Browser=firefox
+/// 
+/// HEADLESS MODE:
+/// - Default: false (UI visible). Override via TestSettings__Headless=true
+/// 
+/// THREAD-SAFETY & PARALLEL EXECUTION:
+/// - Browser instances are stored in ThreadLocal for thread-safe concurrent test execution
+/// - Each test thread gets isolated WebDriver instance
+/// - Call <see cref="InitializeDriver"/>, <see cref="GetDriver"/>, <see cref="QuitDriver"/> as needed
+/// 
+/// PRIORITY ORDER (highest to lowest):
+/// 1. Environment variable (TestSettings__Browser, TestSettings__Headless)
+/// 2. Configuration file (appsettings.json or appsettings.{TEST_ENV}.json)
+/// 3. Default values (chrome, not headless)
 /// </summary>
 public static class DriverManager
 {
@@ -42,13 +56,13 @@ public static class DriverManager
         }
 
         var browser = (Environment.GetEnvironmentVariable("TestSettings__Browser")
-            ?? ConfigManager.GetString("TestSettings:Browser", "chrome")).ToLowerInvariant();
+            ?? ConfigManager.GetString("TestSettings:Browser")).ToLowerInvariant();
 
         try
         {
             var headless = bool.TryParse(Environment.GetEnvironmentVariable("TestSettings__Headless"), out var envHeadless)
                 ? envHeadless
-                : ConfigManager.GetBool("TestSettings:Headless", false);
+                : ConfigManager.GetBool("TestSettings:Headless");
 
             Log.Information("Initializing {Browser} WebDriver (Headless: {Headless})", browser, headless);
 
@@ -73,8 +87,8 @@ public static class DriverManager
 
         driver.Manage().Window.Maximize();
         driver.Manage().Timeouts().ImplicitWait = TimeSpan.Zero;
-        driver.Manage().Timeouts().PageLoad = TimeSpan.FromSeconds(ConfigManager.GetInt("TestSettings:PageLoadTimeoutSeconds", 60));
-        driver.Manage().Timeouts().AsynchronousJavaScript = TimeSpan.FromSeconds(ConfigManager.GetInt("TestSettings:ScriptTimeoutSeconds", 30));
+        driver.Manage().Timeouts().PageLoad = TimeSpan.FromSeconds(ConfigManager.GetInt("TestSettings:PageLoadTimeoutSeconds"));
+        driver.Manage().Timeouts().AsynchronousJavaScript = TimeSpan.FromSeconds(ConfigManager.GetInt("TestSettings:ScriptTimeoutSeconds"));
         RuntimeContext.BrowserName = browser;
 
         return driver;
@@ -96,6 +110,15 @@ public static class DriverManager
         {
             DriverThread.Value = null;
         }
+    }
+
+    /// <summary>
+    /// Disposes the ThreadLocal WebDriver instance. Call this during test run cleanup
+    /// to ensure proper resource cleanup, especially important for parallel test execution.
+    /// </summary>
+    public static void DisposeDriversForAllThreads()
+    {
+        DriverThread?.Dispose();
     }
 
     private static IWebDriver CreateChromeDriver(bool headless)

@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using NUnit.Framework.Interfaces;
 using Framework.Core.Utilities;
 using Framework.Reporting;
@@ -61,8 +60,7 @@ public abstract class ApiTestBase : AllureTestBase
             errorMessage,
             null);
 
-        var reportPath = ReportHelper.GenerateHtmlReport();
-        TestContext.AddTestAttachment(reportPath, "HTML Execution Report");
+        // Report is generated once per test run in global teardown (AllureBootstrap.FinalizeRun)
 
         if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
         {

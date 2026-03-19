@@ -2,6 +2,7 @@
 using Allure.NUnit.Attributes;
 using FluentAssertions;
 using Framework.API;
+using Framework.Core.Configuration;
 using Framework.Reporting;
 
 namespace APITests;
@@ -17,7 +18,8 @@ public class ApiClientTests : ApiTestBase
     [AllureStory("Successful GET request")]
     public async Task GetRequest_ShouldReturnSuccessfulResponse()
     {
-        using var client = new ApiClient("https://postman-echo.com/");
+        var apiBaseUrl = ConfigManager.GetString("Api:BaseUrl");
+        using var client = new ApiClient(apiBaseUrl);
         var response = await client.SendAsync(
             new ApiRequestBuilder()
                 .WithMethod(HttpMethod.Get)

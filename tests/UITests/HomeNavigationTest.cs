@@ -15,7 +15,7 @@ public class HomeNavigationTest : BaseTest
     private HomePageAssertionData _homeData = null!;
 
     [SetUp]
-    public new void SetUp()
+    public void SetUpTests()
     {
         _loginData = LoadLoginData();
         _homeData = LoadHomePageAssertionData();
@@ -33,7 +33,7 @@ public class HomeNavigationTest : BaseTest
         Assert.That(homePage.IsHomePageLoaded(), Is.True, "Home page should be loaded after valid login");
         Assert.That(homePage.ArePrimaryNavigationLinksVisible(), Is.True, "Home navigation links should be visible");
         Assert.That(homePage.IsHeaderSectionVisible(), Is.True, "Home section should be visible");
-        Assert.That(homePage.GetHeadingText(), Does.Contain(_homeData.Heading.ExpectedHeadingContains),
+        Assert.That(homePage.GetHeadingText(), Does.Contain(_homeData.HomePageHeading.ExpectedHeading),
             "Heading text is not matching expected value from data file");
 
         ReportHelper.AddStep("Verifying featured event cards and defaults");
@@ -42,13 +42,15 @@ public class HomeNavigationTest : BaseTest
         Assert.That(homePage.GetFeaturedEventCount(), Is.GreaterThanOrEqualTo(_homeData.FeaturedEvents.MinimumCardCount),
             "Featured event card count is less than expected minimum from data file");
 
-        if (_homeData.FeaturedEvents.RequireTitleAndPrice)
+        // Verify required fields are present if specified
+        if (_homeData.FeaturedEvents.RequiredFields.Contains("title", StringComparer.OrdinalIgnoreCase) ||
+            _homeData.FeaturedEvents.RequiredFields.Contains("price", StringComparer.OrdinalIgnoreCase))
         {
             Assert.That(homePage.DoFeaturedEventCardsContainTitleAndPrice(), Is.True,
                 "Each featured event card should show a title and a valid price label");
         }
 
-        if (_homeData.FeaturedEvents.RequireBookNowLink)
+        if (_homeData.FeaturedEvents.RequiredFields.Contains("bookNowLink", StringComparer.OrdinalIgnoreCase))
         {
             Assert.That(homePage.AreAllFeaturedEventsBookable(), Is.True,
                 "Each featured event card should have an enabled Book Now link");

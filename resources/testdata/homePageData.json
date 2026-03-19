@@ -1,11 +1,14 @@
 {
-  "heading": {
-    "expectedHeadingContains": "Discover & Book"
+  "homePageHeading": {
+    "expectedHeading": "Discover & Book"
   },
   "featuredEvents": {
     "minimumCardCount": 1,
-    "requireTitleAndPrice": true,
-    "requireBookNowLink": true
+    "requiredFields": [
+      "title",
+      "price",
+      "bookNowLink"
+    ]
   },
   "navigation": {
     "eventsPath": "/events",

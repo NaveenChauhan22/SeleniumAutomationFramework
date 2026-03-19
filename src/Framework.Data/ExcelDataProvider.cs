@@ -19,6 +19,8 @@ public static class ExcelDataProvider
         }
 
         using var workbook = new XLWorkbook(filePath);
+        if (!workbook.Worksheets.Contains(sheetName))
+            throw new ArgumentException($"Sheet not found: {sheetName}");
         return ReadWorksheet(workbook.Worksheet(sheetName));
     }
 
@@ -50,7 +52,7 @@ public static class ExcelDataProvider
 
         var headers = rows.First()
             .CellsUsed()
-            .Select(cell => cell.GetString().Trim())
+            .Select(cell => (cell.GetString() ?? string.Empty).Trim())
             .Where(header => !string.IsNullOrWhiteSpace(header))
             .ToList();
 
@@ -61,7 +63,8 @@ public static class ExcelDataProvider
             var rowData = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             for (var index = 0; index < headers.Count; index++)
             {
-                rowData[headers[index]] = row.Cell(index + 1).GetValue<string>().Trim();
+                var cellValue = row.Cell(index + 1).GetValue<object>() as string ?? string.Empty;
+                rowData[headers[index]] = cellValue.Trim();
             }
 
             result.Add(rowData);

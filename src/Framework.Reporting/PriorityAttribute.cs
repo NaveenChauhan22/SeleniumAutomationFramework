@@ -3,9 +3,9 @@ namespace Framework.Reporting;
 /// <summary>Defines the severity tiers that can be assigned to a test case.</summary>
 public enum TestPriority
 {
-    High,
-    Medium,
-    Low
+    High = 1,
+    Medium = 2,
+    Low = 3
 }
 
 /// <summary>
@@ -20,6 +20,8 @@ public sealed class PriorityAttribute : Attribute
 
     public PriorityAttribute(TestPriority level)
     {
+        if (!Enum.IsDefined(typeof(TestPriority), level))
+            throw new ArgumentException("Invalid priority level");
         Level = level;
     }
 }

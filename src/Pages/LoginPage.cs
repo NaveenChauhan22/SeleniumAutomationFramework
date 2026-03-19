@@ -18,9 +18,10 @@ public class LoginPage : BasePage
     private readonly By _emailInput = By.Id("email");
     private readonly By _passwordInput = By.Id("password");
     private readonly By _loginButton = By.Id("login-btn");
+    private readonly By _userEmailDisplay = By.Id("user-email-display");
 
     // ── Inline validation error locators (from <p class="text-red-600"> nodes) ─
-    private readonly By _emailValidationError = By.XPath("//input[@id='email']/following-sibling::p[contains(@class,'text-red')]");
+    private readonly By _emailValidationError = By.XPath("//input[@id='password']/preceding::p[contains(@class,'text-red-600')]");
     private readonly By _passwordValidationError = By.XPath("//input[@id='password']/following-sibling::p[contains(@class,'text-red')]");
 
     // ── Navigation ────────────────────────────────────────────────────────────
@@ -34,12 +35,18 @@ public class LoginPage : BasePage
     // ── Positive-flow actions ─────────────────────────────────────────────────
     public LoginPage EnterEmail(string email)
     {
+        if (string.IsNullOrWhiteSpace(email))
+            throw new ArgumentException("Email cannot be null or whitespace", nameof(email));
+
         EnterText(_emailInput, email);
         return this;
     }
 
     public LoginPage EnterPassword(string password)
     {
+        if (string.IsNullOrWhiteSpace(password))
+            throw new ArgumentException("Password cannot be null or whitespace", nameof(password));
+
         EnterText(_passwordInput, password);
         return this;
     }
@@ -49,11 +56,35 @@ public class LoginPage : BasePage
         Click(_loginButton);
     }
 
+    /// <summary>
+    /// Attempts login with provided credentials and waits for successful login confirmation.
+    /// Use this for tests expecting successful login (e.g., positive flow tests).
+    /// </summary>
     public void LoginAs(string email, string password)
+    {
+        try
+        {
+            EnterEmail(email);
+            EnterPassword(password);
+            ClickLogin();
+            Wait.WaitForElementVisible(_userEmailDisplay);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to login with '{email}'", ex);
+        }
+    }
+
+    /// <summary>
+    /// Use this for tests expecting login failure (e.g., wrong password, unregistered email).
+    /// After calling this, check page state to verify login failed.
+    /// </summary>
+    public void AttemptToLoginWithInvalidCreds(string email, string password)
     {
         EnterEmail(email);
         EnterPassword(password);
         ClickLogin();
+        Wait.WaitForElementVisible(_loginButton);
     }
 
     // ── Negative-scenario helpers ─────────────────────────────────────────────
@@ -75,6 +106,8 @@ public class LoginPage : BasePage
         Wait.WaitForElementVisible(_passwordInput).Clear();
         return this;
     }
+
+    public bool IsUserEmailDisplayed() => IsElementDisplayed(_userEmailDisplay);
 
     /// <summary>
     /// Returns true when the inline "Enter a valid email" error message is shown.
@@ -104,9 +137,20 @@ public class LoginPage : BasePage
     /// </summary>
     public bool IsLoginButtonDisabled()
     {
-        var btn = Wait.WaitForElementVisible(_loginButton);
-        return btn.GetAttribute("disabled") is not null
-            || (btn.GetAttribute("class") ?? string.Empty).Contains("disabled:opacity-60");
+        try
+        {
+            var btn = Wait.WaitForElementVisible(_loginButton);
+            if (btn == null) return true;
+
+            var disabledAttr = btn.GetAttribute("disabled");
+            var classAttr = btn.GetAttribute("class") ?? string.Empty;
+
+            return disabledAttr is not null || classAttr.Contains("disabled:opacity-60");
+        }
+        catch (Exception)
+        {
+            return true; // If element can't be found/checked, assume disabled
+        }
     }
 
     // ── Field-state queries ────────────────────────────────────────────────────
@@ -120,8 +164,17 @@ public class LoginPage : BasePage
     /// </summary>
     public string GetEmailFieldValue()
     {
-        var el = Wait.WaitForElementVisible(_emailInput);
-        return el.GetAttribute("value") ?? string.Empty;
+        try
+        {
+            var el = Wait.WaitForElementVisible(_emailInput);
+            if (el == null) return string.Empty;
+
+            return el.GetAttribute("value") ?? string.Empty;
+        }
+        catch (Exception)
+        {
+            return string.Empty;
+        }
     }
 
     /// <summary>

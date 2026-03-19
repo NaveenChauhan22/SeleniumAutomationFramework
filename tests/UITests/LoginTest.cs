@@ -15,7 +15,7 @@ public class LoginTests : BaseTest
     private LoginTestData _data = null!;
 
     [SetUp]
-    public new void SetUp()
+    public void SetUpTests()
     {
         _data = LoadLoginData();
     }
@@ -28,7 +28,6 @@ public class LoginTests : BaseTest
         ReportHelper.AddStep("Entering valid credentials");
         var loginPage = new LoginPage(Driver, Wait);
         loginPage.LoginAs(_data.ValidCredentials.Email, _data.ValidCredentials.Password);
-
         ReportHelper.AddStep("Verifying home page and login status");
         var homePage = new HomePage(Driver, Wait);
 
@@ -49,9 +48,7 @@ public class LoginTests : BaseTest
         var scenario = _data.InvalidEmailScenario;
         ReportHelper.AddStep($"Entering invalid email: '{scenario.Email}' with password: '{scenario.Password}'");
         var loginPage = new LoginPage(Driver, Wait);
-        loginPage.EnterEmail(scenario.Email);
-        loginPage.EnterPassword(scenario.Password);
-        loginPage.ClickLogin();
+        loginPage.AttemptToLoginWithInvalidCreds(scenario.Email, scenario.Password);
 
         ReportHelper.AddStep("Verifying inline email validation error is displayed");
         Assert.That(loginPage.IsEmailValidationErrorDisplayed(), Is.True,
@@ -62,9 +59,8 @@ public class LoginTests : BaseTest
         Assert.That(actualError, Is.EqualTo(scenario.ExpectedEmailValidationError),
             "Email validation error text did not match expected value from data file");
 
-        ReportHelper.AddStep($"Verifying URL contains '{scenario.ExpectedUrlContains}'");
-        Assert.That(Driver.Url, Does.Contain(scenario.ExpectedUrlContains),
-            "User should remain on login page when email format is invalid");
+        ReportHelper.AddStep("Verifying User Email Display is not visible.");
+        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
     }
 
     [Test]
@@ -75,9 +71,7 @@ public class LoginTests : BaseTest
         var scenario = _data.ShortPasswordScenario;
         ReportHelper.AddStep($"Entering email: '{scenario.Email}' with short password: '{scenario.Password}'");
         var loginPage = new LoginPage(Driver, Wait);
-        loginPage.EnterEmail(scenario.Email);
-        loginPage.EnterPassword(scenario.Password);
-        loginPage.ClickLogin();
+        loginPage.AttemptToLoginWithInvalidCreds(scenario.Email, scenario.Password);
 
         ReportHelper.AddStep("Verifying inline password validation error is displayed");
         Assert.That(loginPage.IsPasswordValidationErrorDisplayed(), Is.True,
@@ -88,9 +82,8 @@ public class LoginTests : BaseTest
         Assert.That(actualError, Is.EqualTo(scenario.ExpectedPasswordValidationError),
             "Password validation error text did not match expected value from data file");
 
-        ReportHelper.AddStep($"Verifying URL contains '{scenario.ExpectedUrlContains}'");
-        Assert.That(Driver.Url, Does.Contain(scenario.ExpectedUrlContains),
-            "User should remain on login page when password is too short");
+        ReportHelper.AddStep("Verifying User Email Display is not visible.");
+        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
     }
 
     [Test]
@@ -115,9 +108,8 @@ public class LoginTests : BaseTest
         Assert.That(loginPage.GetPasswordValidationErrorText(), Is.EqualTo(scenario.ExpectedPasswordValidationError),
             "Password validation error text did not match expected value from data file");
 
-        ReportHelper.AddStep($"Verifying URL contains '{scenario.ExpectedUrlContains}'");
-        Assert.That(Driver.Url, Does.Contain(scenario.ExpectedUrlContains),
-            "User should remain on login page when both fields are empty");
+        ReportHelper.AddStep("Verifying User Email Display is not visible.");
+        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
     }
 
     [Test]
@@ -128,11 +120,10 @@ public class LoginTests : BaseTest
         var scenario = _data.WrongPasswordScenario;
         ReportHelper.AddStep($"Entering valid email with wrong password: '{scenario.Password}'");
         var loginPage = new LoginPage(Driver, Wait);
-        loginPage.LoginAs(_data.ValidCredentials.Email, scenario.Password);
+        loginPage.AttemptToLoginWithInvalidCreds(scenario.Email, scenario.Password);
 
-        ReportHelper.AddStep($"Verifying URL contains '{scenario.ExpectedUrlContains}'");
-        Assert.That(Driver.Url, Does.Contain(scenario.ExpectedUrlContains),
-            "User should remain on login page after entering wrong password");
+        ReportHelper.AddStep("Verifying User Email Display is not visible.");
+        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
     }
 
     [Test]
@@ -143,10 +134,9 @@ public class LoginTests : BaseTest
         var scenario = _data.UnregisteredEmailScenario;
         ReportHelper.AddStep($"Entering unregistered email: '{scenario.Email}' with password: '{scenario.Password}'");
         var loginPage = new LoginPage(Driver, Wait);
-        loginPage.LoginAs(scenario.Email, scenario.Password);
+        loginPage.AttemptToLoginWithInvalidCreds(scenario.Email, scenario.Password);
 
-        ReportHelper.AddStep($"Verifying URL contains '{scenario.ExpectedUrlContains}'");
-        Assert.That(Driver.Url, Does.Contain(scenario.ExpectedUrlContains),
-            "User should remain on login page when email is not registered");
+        ReportHelper.AddStep("Verifying User Email Display is not visible.");
+        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
     }
 }

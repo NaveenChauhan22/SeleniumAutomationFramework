@@ -11,11 +11,23 @@ public static class ScreenshotHelper
 {
     public static string CaptureScreenshot(IWebDriver driver, string outputDirectory, string filePrefix = "screenshot")
     {
-        Directory.CreateDirectory(outputDirectory);
+        if (driver == null)
+            throw new ArgumentNullException(nameof(driver));
 
         if (driver is not ITakesScreenshot takesScreenshot)
         {
             throw new InvalidOperationException("Current WebDriver does not support screenshots.");
+        }
+
+        try
+        {
+            Directory.CreateDirectory(outputDirectory);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to create screenshot directory at '{outputDirectory}'. " +
+                $"Verify path is valid and permissions are sufficient.", ex);
         }
 
         var safePrefix = SanitizeForFileName(filePrefix);

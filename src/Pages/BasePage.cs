@@ -18,6 +18,8 @@ public abstract class BasePage
 
     protected BasePage(IWebDriver driver, WaitHelper wait)
     {
+        if (driver == null) throw new ArgumentNullException(nameof(driver));
+        if (wait == null) throw new ArgumentNullException(nameof(wait));
         Driver = driver;
         Wait = wait;
     }
@@ -80,6 +82,11 @@ public abstract class BasePage
 
     protected void EnterText(By locator, string value)
     {
+        if (locator == null)
+            throw new ArgumentNullException(nameof(locator));
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Value cannot be null or whitespace", nameof(value));
+
         var element = Wait.WaitForElementVisible(locator);
         element.Clear();
         element.SendKeys(value);
@@ -87,7 +94,9 @@ public abstract class BasePage
 
     protected string Text(By locator)
     {
-        return Wait.WaitForElementVisible(locator).Text;
+        if (locator == null)
+            throw new ArgumentNullException(nameof(locator));
+        return Wait.WaitForElementVisible(locator).Text ?? string.Empty;
     }
 
     protected bool IsElementDisplayed(By locator)
@@ -104,6 +113,11 @@ public abstract class BasePage
 
     protected void SelectByText(By locator, string text)
     {
+        if (locator == null)
+            throw new ArgumentNullException(nameof(locator));
+        if (string.IsNullOrWhiteSpace(text))
+            throw new ArgumentException("Text cannot be null or whitespace", nameof(text));
+
         var element = Wait.WaitForElementVisible(locator);
         var selectElement = new SelectElement(element);
         selectElement.SelectByText(text);

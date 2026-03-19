@@ -22,7 +22,7 @@ public static class RuntimeContext
         StartTime = DateTimeOffset.UtcNow;
     }
 
-    public static DateTimeOffset StartTime { get; set; }
+    public static DateTimeOffset StartTime { get; private set; }
 
     public static string BrowserName
     {

@@ -1,6 +1,5 @@
 using OpenQA.Selenium;
 using Framework.Core.Utilities;
-using OpenQA.Selenium.Support.UI;
 using System.Globalization;
 
 namespace UITests.Pages;
@@ -26,9 +25,8 @@ public class HomePage : BasePage
     private readonly By _logoutButton = By.Id("logout-btn");
 
     private readonly By _heading = By.CssSelector("main section h1");
-    private readonly By _browseEventsCta = By.XPath("//main//a[@href='/events'][.//span[contains(normalize-space(.),'Browse Events')]]");
-    private readonly By _myBookingsCta = By.XPath("//main//a[@href='/bookings'][.//button[contains(normalize-space(.),'My Bookings')]]");
-
+    private readonly By _browseEventsCta = By.XPath("//span[contains(normalize-space(.),'Browse Events')]");
+    private readonly By _myBookingsCta = By.XPath("//button[contains(normalize-space(.),'My Bookings')]");
     private readonly By _featuredEventsSectionHeading = By.XPath("//h2[normalize-space()='Featured Events']");
     private readonly By _featuredEventCards = By.CssSelector("[data-testid='event-card']");
     private readonly By _featuredEventTitles = By.CssSelector("[data-testid='event-card'] h3");
@@ -37,31 +35,45 @@ public class HomePage : BasePage
 
     public bool IsHomePageLoaded()
     {
-        var wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(15))
+        try
         {
-            PollingInterval = TimeSpan.FromMilliseconds(250)
-        };
+            return Wait.Until(d =>
+            {
+                if (d == null) return false;
 
-        wait.IgnoreExceptionTypes(typeof(WebDriverException));
-        return wait.Until(d =>
-            !d.Url.Contains("/login", StringComparison.OrdinalIgnoreCase)
-            && d.FindElements(_navHomeLink).Count > 0
-            && d.FindElements(_featuredEventCards).Count > 0);
+                var urlValid = !d.Url.Contains("/login", StringComparison.OrdinalIgnoreCase);
+                var hasNav = d.FindElements(_navHomeLink).Count > 0;
+                var hasCards = d.FindElements(_featuredEventCards).Count > 0;
+
+                return urlValid && hasNav && hasCards;
+            });
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     public string GetCurrentUrl() => Driver.Url;
 
     public bool IsUserLoggedIn()
     {
-        if (!IsHomePageLoaded())
+        try
+        {
+            if (!IsHomePageLoaded())
+            {
+                return false;
+            }
+
+            return IsElementDisplayed(_headerLogo)
+                && IsElementDisplayed(_eventsLink)
+                && IsElementDisplayed(_logoutButton)
+                && IsElementDisplayed(_userEmailDisplay);
+        }
+        catch (Exception)
         {
             return false;
         }
-
-        return IsElementDisplayed(_headerLogo)
-            && IsElementDisplayed(_eventsLink)
-            && IsElementDisplayed(_logoutButton)
-            && IsElementDisplayed(_userEmailDisplay);
     }
 
     public bool IsLogoutDisplayed() => IsElementDisplayed(_logoutButton);
@@ -80,7 +92,7 @@ public class HomePage : BasePage
 
     public bool IsFeaturedEventsSectionVisible() => IsElementDisplayed(_featuredEventsSectionHeading);
 
-    public int GetFeaturedEventCount() => Driver.FindElements(_featuredEventCards).Count;
+    public int GetFeaturedEventCount() => Wait.WaitForAllElementsPresent(_featuredEventCards).Count;
 
     public string GetDisplayedUserEmail() => Text(_userEmailDisplay).Trim();
 
@@ -93,35 +105,50 @@ public class HomePage : BasePage
 
     public bool DoFeaturedEventCardsContainTitleAndPrice()
     {
-        var titles = Driver.FindElements(_featuredEventTitles);
-        var prices = Driver.FindElements(_featuredEventPrices);
+        try
+        {
+            var titles = Wait.WaitForAllElementsPresent(_featuredEventTitles);
+            var prices = Wait.WaitForAllElementsPresent(_featuredEventPrices);
 
-        if (titles.Count == 0 || prices.Count == 0)
+            if (titles == null || titles.Count == 0 || prices == null || prices.Count == 0)
+            {
+                return false;
+            }
+
+            var validTitleCount = titles.Count(title => title != null && !string.IsNullOrWhiteSpace(title.Text));
+            var validPriceCount = prices.Count(price => price != null && IsValidCurrencyLabel(price.Text));
+
+            return validTitleCount == titles.Count && validPriceCount == prices.Count;
+        }
+        catch (Exception)
         {
             return false;
         }
-
-        var validTitleCount = titles.Count(title => !string.IsNullOrWhiteSpace(title.Text));
-        var validPriceCount = prices.Count(price => IsValidCurrencyLabel(price.Text));
-
-        return validTitleCount == titles.Count && validPriceCount == prices.Count;
     }
 
     public bool AreAllFeaturedEventsBookable()
     {
-        var cards = Driver.FindElements(_featuredEventCards);
-        var buttons = Driver.FindElements(_bookNowButtons);
+        try
+        {
+            var cards = Wait.WaitForAllElementsPresent(_featuredEventCards);
+            var buttons = Wait.WaitForAllElementsPresent(_bookNowButtons);
 
-        if (cards.Count == 0 || buttons.Count == 0 || cards.Count != buttons.Count)
+            if (cards == null || cards.Count == 0 || buttons == null || buttons.Count == 0 || cards.Count != buttons.Count)
+            {
+                return false;
+            }
+
+            return buttons.All(button =>
+                button != null
+                && button.Displayed
+                && button.Enabled
+                && !string.IsNullOrWhiteSpace(button.GetAttribute("href"))
+                && button.GetAttribute("href")!.Contains("/events/", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception)
         {
             return false;
         }
-
-        return buttons.All(button =>
-            button.Displayed
-            && button.Enabled
-            && !string.IsNullOrWhiteSpace(button.GetAttribute("href"))
-            && button.GetAttribute("href")!.Contains("/events/", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsValidCurrencyLabel(string text)
