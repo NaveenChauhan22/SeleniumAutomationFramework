@@ -66,6 +66,8 @@ public static class AllureBootstrap
             }
             PreserveHistory();
 
+            ClearOldScreenshots();
+            ClearOldLogs();
             WriteCategories();
             WriteExecutorInfo();
             WriteEnvironmentInfo(DateTimeOffset.UtcNow, null);
@@ -82,6 +84,9 @@ public static class AllureBootstrap
             {
                 return;
             }
+
+            ClearOldTestResults();
+            CopyAllureResultsFromBinToRoot();
 
             var endTime = DateTimeOffset.UtcNow;
             WriteEnvironmentInfo(RuntimeContext.StartTime, endTime);
@@ -162,6 +167,93 @@ public static class AllureBootstrap
             Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
             File.Copy(sourceFile, destinationFile, true);
         }
+    }
+
+    private static void ClearOldTestResults()
+    {
+        var resultsDir = ResultsDirectory;
+        if (!Directory.Exists(resultsDir))
+        {
+            return;
+        }
+
+        // Delete all test result files and metadata files from the results directory,
+        // but preserve the history subdirectory for trend data.
+        foreach (var file in Directory.GetFiles(resultsDir))
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to delete old result file: {FilePath}", file);
+            }
+        }
+
+        Log.Debug("Cleared old test results from {ResultsDirectory}", resultsDir);
+    }
+
+    private static void ClearOldScreenshots()
+    {
+        var screenshotsDir = Path.Combine(ReportHelper.GetReportsDirectory(), "screenshots");
+        if (!Directory.Exists(screenshotsDir))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(screenshotsDir, true);
+            Directory.CreateDirectory(screenshotsDir);
+            Log.Debug("Cleared old screenshots from {ScreenshotsDirectory}", screenshotsDir);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to clear old screenshots directory: {ScreenshotsDirectory}", screenshotsDir);
+        }
+    }
+
+    private static void ClearOldLogs()
+    {
+        var logsDir = Path.Combine(ReportHelper.GetReportsDirectory(), "logs");
+        if (!Directory.Exists(logsDir))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(logsDir, true);
+            Directory.CreateDirectory(logsDir);
+            Log.Debug("Cleared old logs from {LogsDirectory}", logsDir);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to clear old logs directory: {LogsDirectory}", logsDir);
+        }
+    }
+
+    private static void CopyAllureResultsFromBinToRoot()
+    {
+        var sourceDirectory = Path.Combine(AppContext.BaseDirectory, "allure-results");
+        if (!Directory.Exists(sourceDirectory))
+        {
+            return;
+        }
+
+        foreach (var sourceFile in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
+            var destinationFile = Path.Combine(ResultsDirectory, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            File.Copy(sourceFile, destinationFile, true);
+        }
+
+        Log.Information("Copied {Count} Allure results files from {SourceDir} to {TargetDir}",
+            Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories).Length,
+            sourceDirectory,
+            ResultsDirectory);
     }
 
     private static void GenerateReportIfPossible()

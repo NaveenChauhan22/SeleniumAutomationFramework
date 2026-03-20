@@ -1,5 +1,6 @@
 using Framework.Core.Driver;
 using Serilog;
+using Allure.Net.Commons;
 using System.Runtime.CompilerServices;
 
 /// <summary>
