@@ -1,0 +1,17 @@
+{
+  "homePageHeading": {
+    "expectedHeading": "Discover & Book"
+  },
+  "featuredEvents": {
+    "minimumCardCount": 1,
+    "requiredFields": [
+      "title",
+      "price",
+      "bookNowLink"
+    ]
+  },
+  "navigation": {
+    "eventsPath": "/events",
+    "bookingsPath": "/bookings"
+  }
+}
