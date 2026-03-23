@@ -71,13 +71,27 @@ set TEST_USER_PASSWORD=correctpassword
 dotnet test tests/UITests/UITests.csproj
 ```
 
-### Option 3: .env File (Local Development - Recommended)
+### Option 3: macOS (Session-based - Bash/Zsh)
+
+```bash
+export TEST_USER_EMAIL="correctemail@example.com"
+export TEST_USER_PASSWORD="correctpassword"
+
+dotnet test tests/UITests/UITests.csproj
+```
+
+### Option 4: .env File (Local Development - Recommended)
 
 Create a `.env` file in the project root with your credentials:
 
 **Step 1:** Copy the template
 ```bash
 copy .env.example .env
+```
+
+macOS/Linux alternative:
+```bash
+cp .env.example .env
 ```
 
 **Step 2:** Edit `.env` and add your credentials
@@ -113,7 +127,19 @@ Get-Content .env | ForEach-Object {
 dotnet test tests/UITests/UITests.csproj
 ```
 
-**Method C: Using a helper script function** (Not implemented yet)
+**Method C: Manual loading in Bash/Zsh**
+
+```bash
+# Load .env file into current shell
+set -a
+source .env
+set +a
+
+# Now run tests
+dotnet test tests/UITests/UITests.csproj
+```
+
+**Method D: Using a helper script function** (Not implemented yet)
 
 ```powershell
 # Define a reusable function
@@ -144,7 +170,7 @@ dotnet test tests/UITests/UITests.csproj
 - ❌ Never commit your actual `.env` file with real credentials
 - ❌ Don't share `.env` file contents via email or chat
 
-### Option 4: Windows Permanent Environment Variables
+### Option 5: Windows Permanent Environment Variables
 
 1. Press `Win + Pause` → **Environment Variables**
 2. Click **New** under "User variables"
@@ -157,7 +183,25 @@ dotnet test tests/UITests/UITests.csproj
 [Environment]::SetEnvironmentVariable("TEST_USER_PASSWORD", "correctpassword", "User")
 ```
 
-### Option 5: CI/CD Pipeline
+### Option 6: macOS Environment Variables (Persistent)
+
+1. Open your shell profile (`~/.zshrc` for zsh, `~/.bash_profile` for bash)
+2. Add:
+
+```bash
+export TEST_USER_EMAIL="correctemail@example.com"
+export TEST_USER_PASSWORD="correctpassword"
+```
+
+3. Reload profile and verify:
+
+```bash
+source ~/.zshrc
+echo "$TEST_USER_EMAIL"
+echo "$TEST_USER_PASSWORD"
+```
+
+### Option 7: CI/CD Pipeline
 ```yaml
 env:
   TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
@@ -170,6 +214,13 @@ jobs:
       - uses: actions/checkout@v3
       - name: Run Tests
         run: dotnet test tests/UITests/UITests.csproj
+```
+
+macOS runner alternative:
+```yaml
+jobs:
+  test:
+    runs-on: macos-latest
 ```
 
 #### Azure Pipelines
@@ -219,6 +270,12 @@ $env:TEST_USER_PASSWORD
 ```cmd
 echo %TEST_USER_EMAIL%
 echo %TEST_USER_PASSWORD%
+```
+
+**macOS (Bash/Zsh):**
+```bash
+echo "$TEST_USER_EMAIL"
+echo "$TEST_USER_PASSWORD"
 ```
 
 ---
@@ -284,7 +341,7 @@ The `LoadLoginData()` method:
 
 | Issue | Solution |
 |-------|----------|
-| `TEST_USER_EMAIL not found` | Set `$env:TEST_USER_EMAIL = "value"` and restart terminal |
+| `TEST_USER_EMAIL not found` | Set `$env:TEST_USER_EMAIL = "value"` (PowerShell) or `export TEST_USER_EMAIL="value"` (Bash/Zsh), then restart terminal |
 | Tests pass locally but fail in CI/CD | Verify secrets are configured in GitHub/Azure platform |
 | Old hardcoded credentials still appear | Clear browser cache or check JSON file for leftover values |
 | Variable value contains special characters | Ensure proper escaping in environment variable setup |

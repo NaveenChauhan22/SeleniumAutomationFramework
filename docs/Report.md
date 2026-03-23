@@ -27,10 +27,18 @@ Run the API suite:
 dotnet test .\tests\APITests\APITests.csproj
 ```
 
+```bash
+dotnet test ./tests/APITests/APITests.csproj
+```
+
 Run the UI suite:
 
 ```powershell
 dotnet test .\tests\UITests\UITests.csproj
+```
+
+```bash
+dotnet test ./tests/UITests/UITests.csproj
 ```
 
 Run with a browser override:
@@ -38,6 +46,11 @@ Run with a browser override:
 ```powershell
 $env:TestSettings__Browser = "chrome"
 dotnet test .\tests\UITests\UITests.csproj
+```
+
+```bash
+export TestSettings__Browser="chrome"
+dotnet test ./tests/UITests/UITests.csproj
 ```
 
 ## Set Test Priority
@@ -68,10 +81,18 @@ Open the generated report with:
 allure open .\reports\allure-report
 ```
 
+```bash
+allure open ./reports/allure-report
+```
+
 If you need to regenerate it manually:
 
 ```powershell
 allure generate .\reports\allure-results -o .\reports\allure-report --clean
+```
+
+```bash
+allure generate ./reports/allure-results -o ./reports/allure-report --clean
 ```
 
 ## Failure Attachments
@@ -98,3 +119,4 @@ The Allure report includes:
 - Failure categories for assertions, timeouts, missing elements, and HTTP 5xx issues
 - Failure attachments such as screenshots and page source for UI failures
 - Request and response attachments for API failures when available
+

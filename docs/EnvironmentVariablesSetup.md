@@ -51,7 +51,21 @@ Then run tests:
 dotnet test tests/UITests/UITests.csproj
 ```
 
-### Option 3: Windows Environment Variables (Permanent)
+### Option 3: macOS (Session-based - Bash/Zsh)
+
+Set variables for the current terminal session only:
+
+```bash
+export TEST_USER_EMAIL="correctemail@example.com"
+export TEST_USER_PASSWORD="correctpassword"
+```
+
+Then run tests:
+```bash
+dotnet test tests/UITests/UITests.csproj
+```
+
+### Option 4: Windows Environment Variables (Permanent)
 
 Set system/user environment variables permanently:
 
@@ -69,7 +83,29 @@ Set system/user environment variables permanently:
 [Environment]::SetEnvironmentVariable("TEST_USER_PASSWORD", "correctpassword", "User")
 ```
 
-### Option 4: .env File and dotenv (Recommended for Local Development)
+### Option 5: macOS Environment Variables (Persistent)
+
+Persist variables for future terminal sessions:
+
+1. Open your shell profile:
+  - zsh (default): `~/.zshrc`
+  - bash: `~/.bash_profile` (or `~/.bashrc`)
+2. Add:
+
+```bash
+export TEST_USER_EMAIL="correctemail@example.com"
+export TEST_USER_PASSWORD="correctpassword"
+```
+
+3. Reload profile and verify:
+
+```bash
+source ~/.zshrc
+echo "$TEST_USER_EMAIL"
+echo "$TEST_USER_PASSWORD"
+```
+
+### Option 6: .env File and dotenv (Recommended for Local Development)
 
 Create a `.env` file in the project root:
 
@@ -88,7 +124,7 @@ dotenv load
 dotnet test tests/UITests/UITests.csproj
 ```
 
-### Option 5: CI/CD Pipeline (GitHub Actions, Azure Pipelines, etc.)
+### Option 7: CI/CD Pipeline (GitHub Actions, Azure Pipelines, etc.)
 
 Set secrets in your CI/CD platform and inject as environment variables during test execution.
 
@@ -164,12 +200,14 @@ Currently, the following test data files support environment variable substituti
 ### Tests fail with "Environment variable not found" error
 - ✅ Verify all variables are set: `$env:TEST_USER_EMAIL`, etc.
 - ✅ Use `Get-ChildItem env:` in PowerShell to list all set variables
+- ✅ On macOS/Linux, verify with `echo "$TEST_USER_EMAIL"` and `printenv | grep TEST_USER_`
 - ✅ Check for typos in variable names (case-sensitive on Linux/Mac)
 
 ### Variables set but tests still fail
 - ✅ Restart your IDE/terminal after setting environment variables
 - ✅ Ensure you're running tests from the correct directory
 - ✅ Use `$env:VARIABLE_NAME` in PowerShell to verify value is set
+- ✅ Use `echo "$VARIABLE_NAME"` in Bash/Zsh to verify value is set
 
 ### Different values needed for different environments
 - Create separate `.env` files: `.env.local`, `.env.staging`, `.env.prod`
@@ -187,3 +225,5 @@ Currently, the following test data files support environment variable substituti
 - **Login Tests**: [tests/UITests/LoginTest.cs](../tests/UITests/LoginTest.cs)
   - Uses credentials from `loginData.json`
 
+## Note
+Credentials mentioned above are just for reference purpose and are not correct. 

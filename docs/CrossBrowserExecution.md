@@ -33,6 +33,11 @@ Then run tests normally:
 dotnet test tests/UITests/UITests.csproj
 ```
 
+macOS/Linux:
+```bash
+dotnet test tests/UITests/UITests.csproj
+```
+
 The .env file is automatically loaded by the framework before tests execute (via ModuleInitializer in AllureHooks).
 
 ### Method 2: Via Environment Variables (Best for CI/CD)
@@ -52,6 +57,18 @@ $env:TestSettings__Browser = "edge"; dotnet test tests/UITests/UITests.csproj
 #### Firefox
 ```powershell
 $env:TestSettings__Browser = "firefox"; dotnet test tests/UITests/UITests.csproj
+```
+
+#### Bash/Zsh (macOS/Linux)
+```bash
+# Chrome
+export TestSettings__Browser="chrome"; dotnet test tests/UITests/UITests.csproj
+
+# Edge
+export TestSettings__Browser="edge"; dotnet test tests/UITests/UITests.csproj
+
+# Firefox
+export TestSettings__Browser="firefox"; dotnet test tests/UITests/UITests.csproj
 ```
 
 ### Method 3: Via Config File
@@ -79,6 +96,10 @@ TestSettings__Headless=true
 ### Headless via Environment Variable
 ```powershell
 $env:TestSettings__Headless = "true"; dotnet test tests/UITests/UITests.csproj
+```
+
+```bash
+export TestSettings__Headless="true"; dotnet test tests/UITests/UITests.csproj
 ```
 
 ### Headless via Config File
@@ -130,7 +151,20 @@ $env:TestSettings__Browser = "edge"; dotnet test tests/UITests/UITests.csproj
 $env:TestSettings__Browser = "firefox"; dotnet test tests/UITests/UITests.csproj
 ```
 
-### Option 3: Using Config File
+### Option 3: Using Bash/Zsh Environment Variables (macOS/Linux)
+
+```bash
+# Chrome tests
+dotnet test tests/UITests/UITests.csproj
+
+# Edge tests
+export TestSettings__Browser="edge"; dotnet test tests/UITests/UITests.csproj
+
+# Firefox tests
+export TestSettings__Browser="firefox"; dotnet test tests/UITests/UITests.csproj
+```
+
+### Option 4: Using Config File
 
 Edit `config/appsettings.json`:
 ```json
@@ -144,7 +178,12 @@ Then run:
 dotnet test tests/UITests/UITests.csproj
 ```
 
-### Option 4: Batch/CMD Script
+macOS/Linux:
+```bash
+dotnet test tests/UITests/UITests.csproj
+```
+
+### Option 5: Batch/CMD Script
 
 ```batch
 REM Chrome
@@ -156,6 +195,21 @@ dotnet test tests/UITests/UITests.csproj
 
 REM Firefox
 set TestSettings__Browser=firefox
+dotnet test tests/UITests/UITests.csproj
+```
+
+### Option 6: Bash/Zsh Script
+
+```bash
+# Chrome
+dotnet test tests/UITests/UITests.csproj
+
+# Edge
+export TestSettings__Browser=edge
+dotnet test tests/UITests/UITests.csproj
+
+# Firefox
+export TestSettings__Browser=firefox
 dotnet test tests/UITests/UITests.csproj
 ```
 
@@ -200,9 +254,10 @@ on: [push, pull_request]
 
 jobs:
   test:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [windows-latest, macos-latest]
         browser: [chrome, edge, firefox]
     steps:
       - uses: actions/checkout@v3
@@ -216,6 +271,8 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
         run: dotnet test tests/UITests/UITests.csproj --no-build
 ```
+
+For Azure Pipelines, you can run the same matrix on macOS by changing `vmImage` to `macOS-latest`.
 
 ### Azure Pipelines Example
 
@@ -266,6 +323,16 @@ Quick validation across all browsers without UI:
 }
 ```
 
+macOS/Linux:
+```bash
+for browser in chrome edge firefox; do
+  echo "Testing on $browser"
+  export TestSettings__Browser="$browser"
+  export TestSettings__Headless="true"
+  dotnet test tests/UITests/UITests.csproj --no-build
+done
+```
+
 ### Scenario 3: CI/CD Deployment - Parallel Browser Testing
 Let the CI/CD platform handle parallel execution:
 - GitHub Actions/Azure Pipelines will run same test suite on chrome, edge, firefox simultaneously
@@ -303,7 +370,7 @@ All browsers support these configuration options:
 
 ### Test runs in wrong browser
 
-1. Verify environment variable is set: `$env:TestSettings__Browser` (PowerShell)
+1. Verify environment variable is set: `$env:TestSettings__Browser` (PowerShell) or `echo "$TestSettings__Browser"` (Bash/Zsh)
 2. Check `config/appsettings.json` for the fallback value
 3. Confirm the driver is installed (WebDriverManager handles this automatically)
 
@@ -313,3 +380,6 @@ WebDriverManager automatically downloads compatible drivers. Ensure:
 - .NET SDK is installed
 - Internet connection available (for first-time driver download)
 - System has write permissions in temp folders
+
+## Note
+Credentials mentioned above are just for reference purpose and are not correct. 
