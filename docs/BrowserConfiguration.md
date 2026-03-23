@@ -37,7 +37,7 @@ TestSettings__Headless=false
 **How it works:**
 - Framework automatically loads .env file before tests execute
 - Credentials and browser settings are set as environment variables
-- No manual PowerShell setup required
+- No manual shell setup required (PowerShell/Bash/Zsh)
 - Perfect for iterative local development
 
 **Usage:**
@@ -63,6 +63,13 @@ dotnet test tests/UITests/UITests.csproj
 # Command Prompt
 set TestSettings__Browser=firefox
 set TestSettings__Headless=false
+dotnet test tests/UITests/UITests.csproj
+```
+
+```bash
+# Bash/Zsh (macOS/Linux)
+export TestSettings__Browser=firefox
+export TestSettings__Headless=false
 dotnet test tests/UITests/UITests.csproj
 ```
 
@@ -101,6 +108,14 @@ Windows:
 [Environment]::SetEnvironmentVariable("TestSettings__Headless", "true", "User")
 ```
 
+macOS:
+```bash
+# Add to ~/.zshrc (or ~/.bash_profile), then reload shell
+echo 'export TestSettings__Browser="firefox"' >> ~/.zshrc
+echo 'export TestSettings__Headless="true"' >> ~/.zshrc
+source ~/.zshrc
+```
+
 **When to use:**
 - Never - this pollutes system environment
 - Use Method 1 (.env) or Method 2 (process-level env vars) instead
@@ -117,6 +132,10 @@ TestSettings__Headless=true
 ### Via Environment Variable
 ```powershell
 $env:TestSettings__Headless = "true"; dotnet test tests/UITests/UITests.csproj
+```
+
+```bash
+export TestSettings__Headless=true; dotnet test tests/UITests/UITests.csproj
 ```
 
 ### Via appsettings.json
@@ -137,7 +156,7 @@ The framework resolves browser configuration in this exact order:
 
 ```
 1. Process Environment Variable (TestSettings__Browser)
-   └─ Set via: $env:VAR = "value" or set VAR=value
+  └─ Set via: $env:VAR = "value", set VAR=value, or export VAR=value
    └─ Highest priority - overrides everything
 
 2. .env File Variables  
@@ -158,14 +177,14 @@ The framework resolves browser configuration in this exact order:
 
 Scenario A - Using .env with no env var override:
 ```
-1. Check: $env:TestSettings__Browser → (empty)
+1. Check: environment variable TestSettings__Browser → (empty)
 2. Check: .env file → TestSettings__Browser=edge (USED)
 3. Result: Edge browser
 ```
 
 Scenario B - Environment variable overrides everything:
 ```
-1. Check: $env:TestSettings__Browser → chrome (USED)
+1. Check: environment variable TestSettings__Browser → chrome (USED)
 2. (.env and config file are ignored)
 3. Result: Chrome browser
 ```
@@ -191,6 +210,11 @@ TestSettings__Headless=false
 
 Run tests:
 ```powershell
+dotnet test tests/UITests/UITests.csproj
+```
+
+macOS/Linux:
+```bash
 dotnet test tests/UITests/UITests.csproj
 ```
 
@@ -244,7 +268,7 @@ dotnet test tests/UITests/UITests.csproj --no-build
 ## Troubleshooting
 
 ### Tests use wrong browser
-1. Check process environment: `$env:TestSettings__Browser` (highest priority)
+1. Check process environment: `$env:TestSettings__Browser` (PowerShell) or `echo "$TestSettings__Browser"` (Bash/Zsh)
 2. Check .env file exists and has `TestSettings__Browser=xxx`
 3. Check appsettings.json has correct value
 4. Default is always chrome
@@ -292,3 +316,6 @@ Thread-local WebDriver instances ensure each test thread gets isolated browser:
 - [CrossBrowserExecution.md](./CrossBrowserExecution.md) - Complete cross-browser testing guide
 - [FrameworkArchitecture.md](./FrameworkArchitecture.md) - Overall framework design
 - [SecureCredentialsSetup.md](./SecureCredentialsSetup.md) - Credential configuration
+
+## Note
+Credentials mentioned above are just for reference purpose and are not correct. 
