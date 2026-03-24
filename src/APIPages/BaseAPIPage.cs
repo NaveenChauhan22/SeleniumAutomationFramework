@@ -94,8 +94,8 @@ public abstract class BaseAPIPage
             }
             catch (Exception ex)
             {
-                Serilog.Log.Logger.Warning("Failed to sanitize request content: {Message}", ex.Message);
-                // Continue with unsanitized content if sanitization fails
+                Serilog.Log.Logger.Error("Request content could not be sanitized; details redacted for security. Error: {Message}", ex.Message);
+                requestText = "[Request content could not be sanitised.]";
             }
 
             Serilog.Log.Logger.Information("[API] Request: {Method} {Url}\n{RequestDetails}", method, relativeUrl, requestText);
@@ -139,8 +139,8 @@ public abstract class BaseAPIPage
             }
             catch (Exception ex)
             {
-                Serilog.Log.Logger.Warning("Failed to sanitize response content: {Message}", ex.Message);
-                // Continue with unsanitized content if sanitization fails
+                Serilog.Log.Logger.Error("Response content could not be sanitized; details redacted for security. Error: {Message}", ex.Message);
+                responseText = "[Response content could not be sanitised.]";
             }
 
             Serilog.Log.Logger.Information("[API] Response: {StatusCode}\n{ResponseDetails}", (int)response.StatusCode, responseText);
@@ -178,7 +178,21 @@ public abstract class BaseAPIPage
         }
         catch (JsonException ex)
         {
-            throw new InvalidOperationException($"Failed to parse response body as JSON. Response body: {result.ResponseBody.Substring(0, Math.Min(100, result.ResponseBody.Length))}...", ex);
+            // Sanitize the response body before including in exception to prevent credential leakage
+            string sanitizedContent;
+            try
+            {
+                sanitizedContent = APIContentSanitizer.SanitizeDump(result.ResponseBody, showBearerToken: false);
+                // Truncate to first 100 chars for context without being too verbose
+                sanitizedContent = sanitizedContent.Substring(0, Math.Min(100, sanitizedContent.Length)) + "...";
+            }
+            catch
+            {
+                // If sanitization fails, use a generic message to avoid exposing raw content
+                sanitizedContent = "[Response content could not be included in error message for security reasons.]";
+            }
+            
+            throw new InvalidOperationException($"Failed to parse response body as JSON. Sanitized content: {sanitizedContent}", ex);
         }
         catch (Exception ex)
         {

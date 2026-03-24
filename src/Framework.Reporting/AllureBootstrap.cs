@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Serilog;
 using Allure.Net.Commons;
@@ -18,10 +19,20 @@ public static class AllureBootstrap
 {
     private static readonly object SyncLock = new();
     private static bool _initialized;
+    private static readonly TimeSpan UnknownRunIdMergeWindow = TimeSpan.FromSeconds(30);
 
     public static string ResultsDirectory => Path.Combine(ReportHelper.GetReportsDirectory(), "allure-results");
 
     public static string ReportDirectory => Path.Combine(ReportHelper.GetReportsDirectory(), "allure-report");
+
+    private static string SessionMarkerPath => Path.Combine(ReportHelper.GetReportsDirectory(), ".allure-merge-session.marker");
+
+    private sealed class MergeSessionMarker
+    {
+        public DateTimeOffset UpdatedAtUtc { get; set; }
+        public string RunId { get; set; } = string.Empty;
+        public List<string> Sources { get; set; } = [];
+    }
 
     public static void InitializeRun()
     {
@@ -55,6 +66,7 @@ public static class AllureBootstrap
                 throw;
             }
 
+            var startedFreshExecution = PrepareResultsDirectoryForCurrentSession();
             PreserveHistory();
             try
             {
@@ -66,8 +78,11 @@ public static class AllureBootstrap
             }
             PreserveHistory();
 
-            ClearOldScreenshots();
-            ClearOldLogs();
+            if (startedFreshExecution)
+            {
+                ClearOldScreenshots();
+                ClearOldLogs();
+            }
             WriteCategories();
             WriteExecutorInfo();
             WriteEnvironmentInfo(DateTimeOffset.UtcNow, null);
@@ -85,11 +100,15 @@ public static class AllureBootstrap
                 return;
             }
 
-            ClearOldTestResults();
             CopyAllureResultsFromBinToRoot();
 
             var endTime = DateTimeOffset.UtcNow;
             WriteEnvironmentInfo(RuntimeContext.StartTime, endTime);
+
+            // Refresh the marker timestamp on completion so the merge window is measured
+            // from when this suite FINISHED, not when it started. This is critical when
+            // suites run longer than the merge window.
+            TouchMergeSessionMarker();
 
             // Generate HTML report once per run
             var htmlReportPath = ReportHelper.GenerateHtmlReport();
@@ -167,6 +186,208 @@ public static class AllureBootstrap
             Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
             File.Copy(sourceFile, destinationFile, true);
         }
+    }
+
+    private static bool PrepareResultsDirectoryForCurrentSession()
+    {
+        // Start fresh for every new execution. Merge only when the same deterministic
+        // run id is present across multiple suite hosts (e.g., Test Explorer run-all).
+        var markerPath = SessionMarkerPath;
+        var currentSource = GetCurrentResultsSource();
+        var currentRunId = ResolveExecutionRunId();
+        var marker = ReadMergeSessionMarker(markerPath);
+        var shouldResetResults = ShouldResetCombinedResults(marker, currentSource, currentRunId);
+
+        if (shouldResetResults)
+        {
+            ClearOldTestResults();
+            Log.Information("Started new Allure merge session and reset existing result files.");
+            marker = new MergeSessionMarker
+            {
+                RunId = currentRunId
+            };
+        }
+
+        marker ??= new MergeSessionMarker
+        {
+            RunId = currentRunId
+        };
+
+        try
+        {
+            marker.RunId = currentRunId;
+
+            if (!marker.Sources.Contains(currentSource, StringComparer.OrdinalIgnoreCase))
+            {
+                marker.Sources.Add(currentSource);
+            }
+
+            marker.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            File.WriteAllText(markerPath, JsonConvert.SerializeObject(marker, Formatting.Indented));
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to update Allure merge session marker at {MarkerPath}", markerPath);
+        }
+
+        return shouldResetResults;
+    }
+
+    private static bool ShouldResetCombinedResults(MergeSessionMarker? marker, string currentSource, string currentRunId)
+    {
+        if (marker is null)
+        {
+            return true;
+        }
+
+        if (string.Equals(currentRunId, "unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            var elapsed = DateTimeOffset.UtcNow - marker.UpdatedAtUtc;
+
+            // Re-running same source should always start fresh.
+            if (marker.Sources.Any(source => string.Equals(source, currentSource, StringComparison.OrdinalIgnoreCase)))
+            {
+                Log.Information(
+                    "Execution id unavailable and source '{Source}' already exists in session. Starting fresh.",
+                    currentSource);
+                return true;
+            }
+
+            // Allow immediate API->UI or UI->API terminal chaining to merge as one execution.
+            if (elapsed <= UnknownRunIdMergeWindow)
+            {
+                Log.Information(
+                    "Execution id unavailable, but different source '{Source}' started within {Window}. Merging results.",
+                    currentSource,
+                    UnknownRunIdMergeWindow);
+                return false;
+            }
+
+            Log.Information(
+                "Execution id unavailable and previous session is older than {Window}. Starting fresh.",
+                UnknownRunIdMergeWindow);
+            return true;
+        }
+
+        if (!string.Equals(marker.RunId, currentRunId, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Information(
+                "Execution id changed from '{PreviousRunId}' to '{CurrentRunId}'. Starting fresh.",
+                marker.RunId,
+                currentRunId);
+            return true;
+        }
+
+        // Running the same suite again always starts fresh.
+        if (marker.Sources.Any(source => string.Equals(source, currentSource, StringComparison.OrdinalIgnoreCase)))
+        {
+            Log.Information(
+                "Source '{Source}' already present in merge session. Starting fresh.",
+                currentSource);
+            return true;
+        }
+
+        Log.Information(
+            "Merging with existing session. Current source '{Source}' not yet in session.",
+            currentSource);
+        return false;
+    }
+
+    private static void TouchMergeSessionMarker()
+    {
+        var markerPath = SessionMarkerPath;
+        try
+        {
+            if (!File.Exists(markerPath))
+            {
+                return;
+            }
+
+            var json = File.ReadAllText(markerPath);
+            var marker = JsonConvert.DeserializeObject<MergeSessionMarker>(json);
+            if (marker is null)
+            {
+                return;
+            }
+
+            // Update the timestamp to completion time so next suite measures gap from here.
+            marker.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            File.WriteAllText(markerPath, JsonConvert.SerializeObject(marker, Formatting.Indented));
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to touch Allure merge session marker at {MarkerPath}", markerPath);
+        }
+    }
+
+    private static MergeSessionMarker? ReadMergeSessionMarker(string markerPath)
+    {
+        if (!File.Exists(markerPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(markerPath);
+            var marker = JsonConvert.DeserializeObject<MergeSessionMarker>(json);
+            return marker;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to read Allure merge session marker. Resetting results as a safe fallback.");
+            return null;
+        }
+    }
+
+    private static string GetCurrentResultsSource()
+    {
+        var source = Environment.GetEnvironmentVariable("ALLURE_RESULTS_DIRECTORY");
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            source = Path.Combine(AppContext.BaseDirectory, "allure-results");
+        }
+
+        return Path.GetFullPath(source);
+    }
+
+    private static string ResolveExecutionRunId()
+    {
+        // Prefer test-platform-provided run/session ids when available.
+        var envCandidates = new[]
+        {
+            "VSTEST_SESSION_ID",
+            "VSTEST_RUN_ID",
+            "TEST_SESSION_ID",
+            "ALLURE_EXECUTION_ID"
+        };
+
+        foreach (var key in envCandidates)
+        {
+            var value = Environment.GetEnvironmentVariable(key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        // Fallback: parse testhost command line for session id hints.
+        var commandLine = Environment.CommandLine;
+        var sessionMatch = Regex.Match(
+            commandLine,
+            @"--(?:testsessionid|session-id|sessionid)\s+([\w\-]+)",
+            RegexOptions.IgnoreCase);
+
+        if (sessionMatch.Success && sessionMatch.Groups.Count > 1)
+        {
+            var parsed = sessionMatch.Groups[1].Value;
+            if (!string.IsNullOrWhiteSpace(parsed))
+            {
+                return parsed.Trim();
+            }
+        }
+
+        return "unknown";
     }
 
     private static void ClearOldTestResults()

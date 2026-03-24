@@ -8,7 +8,7 @@ namespace APITests;
 
 [AllureNUnit]
 [AllureParentSuite("APITests")]
-[AllureSuite("EventHub API")]
+[AllureSuite("Events API")]
 [AllureFeature("Events")]
 public class EventsAPITests : APITestBase
 {

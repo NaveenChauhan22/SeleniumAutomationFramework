@@ -341,7 +341,6 @@ public abstract class BaseTest
 
         public sealed class AssertionData
         {
-            public string HomePageDomain { get; init; } = string.Empty;
             public string LoginPagePath { get; init; } = string.Empty;
         }
     }

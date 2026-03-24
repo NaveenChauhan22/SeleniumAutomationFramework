@@ -1,6 +1,7 @@
 ﻿using Allure.NUnit;
 using Allure.NUnit.Attributes;
 using UITests.Pages;
+using Framework.Core.Configuration;
 using Framework.Reporting;
 
 namespace UITests;
@@ -35,7 +36,9 @@ public class LoginTests : BaseTest
         Assert.That(homePage.IsHomePageLoaded(), Is.True, "User did not land on home page after login.");
         Assert.That(homePage.GetCurrentUrl(), Does.Not.Contain(_data.Assertions.LoginPagePath),
             "User URL still indicates login page.");
-        Assert.That(homePage.GetCurrentUrl(), Does.Contain(_data.Assertions.HomePageDomain),
+        
+        var expectedDomain = new Uri(ConfigManager.GetString("TestSettings:BaseUrl")).Host;
+        Assert.That(homePage.GetCurrentUrl(), Does.Contain(expectedDomain),
             "User is not on the expected application domain.");
         ReportHelper.AddStep("Login test completed successfully");
     }
@@ -59,8 +62,8 @@ public class LoginTests : BaseTest
         Assert.That(actualError, Is.EqualTo(scenario.ExpectedEmailValidationError),
             "Email validation error text did not match expected value from data file");
 
-        ReportHelper.AddStep("Verifying User Email Display is not visible.");
-        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
+        ReportHelper.AddStep("Verifying Login Button is displayed as we are on login page.");
+        Assert.That(loginPage.IsLoginButtonDisplayed(), Is.True, "Login button should be displayed when login fails");
     }
 
     [Test]
@@ -82,8 +85,8 @@ public class LoginTests : BaseTest
         Assert.That(actualError, Is.EqualTo(scenario.ExpectedPasswordValidationError),
             "Password validation error text did not match expected value from data file");
 
-        ReportHelper.AddStep("Verifying User Email Display is not visible.");
-        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
+        ReportHelper.AddStep("Verifying Login Button is displayed as we are on login page.");
+        Assert.That(loginPage.IsLoginButtonDisplayed(), Is.True, "Login button should be displayed when login fails");
     }
 
     [Test]
@@ -108,8 +111,8 @@ public class LoginTests : BaseTest
         Assert.That(loginPage.GetPasswordValidationErrorText(), Is.EqualTo(scenario.ExpectedPasswordValidationError),
             "Password validation error text did not match expected value from data file");
 
-        ReportHelper.AddStep("Verifying User Email Display is not visible.");
-        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
+        ReportHelper.AddStep("Verifying Login Button is displayed as we are on login page.");
+        Assert.That(loginPage.IsLoginButtonDisplayed(), Is.True, "Login button should be displayed when login fails");
     }
 
     [Test]
@@ -122,8 +125,8 @@ public class LoginTests : BaseTest
         var loginPage = new LoginPage(Driver, Wait);
         loginPage.AttemptToLoginWithInvalidCreds(scenario.Email, scenario.Password);
 
-        ReportHelper.AddStep("Verifying User Email Display is not visible.");
-        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
+        ReportHelper.AddStep("Verifying Login Button is displayed as we are on login page.");
+        Assert.That(loginPage.IsLoginButtonDisplayed(), Is.True, "Login button should be displayed when login fails");
     }
 
     [Test]
@@ -136,7 +139,7 @@ public class LoginTests : BaseTest
         var loginPage = new LoginPage(Driver, Wait);
         loginPage.AttemptToLoginWithInvalidCreds(scenario.Email, scenario.Password);
 
-        ReportHelper.AddStep("Verifying User Email Display is not visible.");
-        Assert.That(loginPage.IsUserEmailDisplayed(), Is.False, "User email display should not be visible when login fails");
+       ReportHelper.AddStep("Verifying Login Button is displayed as we are on login page.");
+       Assert.That(loginPage.IsLoginButtonDisplayed(), Is.True, "Login button should be displayed when login fails");
     }
 }

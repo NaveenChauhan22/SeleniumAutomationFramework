@@ -61,10 +61,26 @@ public class APIClient : IDisposable
 
         _logger.LogInformation("Received API response: {StatusCode}", (int)response.StatusCode);
         var requestDump = await FormatRequestAsync(request, cancellationToken);
-        requestDump = APIContentSanitizer.SanitizeDump(requestDump, ShowBearerToken);
+        try
+        {
+            requestDump = APIContentSanitizer.SanitizeDump(requestDump, ShowBearerToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Request content could not be sanitized; details redacted for security. Error: {Message}", ex.Message);
+            requestDump = "[Request content could not be sanitised.]";
+        }
 
         var responseDump = await FormatResponseAsync(response, cancellationToken);
-        responseDump = APIContentSanitizer.SanitizeDump(responseDump, ShowBearerToken);
+        try
+        {
+            responseDump = APIContentSanitizer.SanitizeDump(responseDump, ShowBearerToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Response content could not be sanitized; details redacted for security. Error: {Message}", ex.Message);
+            responseDump = "[Response content could not be sanitised.]";
+        }
 
         RuntimeContext.RecordApiExchange(
             requestDump,
@@ -79,7 +95,10 @@ public class APIClient : IDisposable
             return;
         }
 
-        _httpClient.Dispose();
+        // Do not dispose the injected HttpClient here.
+        // The composition root (DI container or test fixture) is responsible for managing
+        // the lifecycle of the injected HttpClient. Disposing it here would break other
+        // consumers in a shared test runtime.
         _disposed = true;
     }
 

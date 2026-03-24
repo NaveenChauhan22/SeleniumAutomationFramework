@@ -8,8 +8,8 @@ namespace APITests;
 
 [AllureNUnit]
 [AllureParentSuite("APITests")]
-[AllureSuite("EventHub API")]
-[AllureFeature("Auth")]
+[AllureSuite("Authentication API")]
+[AllureFeature("Authentication")]
 public class AuthAPITests : APITestBase
 {
 
