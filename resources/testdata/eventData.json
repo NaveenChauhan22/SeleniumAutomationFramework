@@ -1,0 +1,53 @@
+{
+  "endpoints": {
+    "list": "/api/events",
+    "create": "/api/events",
+    "getById": "/api/events/{id}",
+    "updateById": "/api/events/{id}",
+    "deleteById": "/api/events/{id}"
+  },
+  "events": {
+    "createPayload": {
+      "title": "Automation Event {timestamp}",
+      "description": "Created by automated API test.",
+      "category": "Conference",
+      "venue": "Automation Test Venue",
+      "city": "Bangalore",
+      "eventDate": "{utcNowPlusDays:20:O}",
+      "price": 1200,
+      "totalSeats": 40,
+      "imageUrl": "https://example.com/event-banner.jpg"
+    },
+    "updatePayload": {
+      "title": "Automation Event Updated {timestamp}",
+      "description": "Created by automated API test.",
+      "category": "Conference",
+      "venue": "Automation Test Venue",
+      "city": "Bangalore",
+      "eventDate": "{utcNowPlusDays:30:O}",
+      "price": 1300,
+      "totalSeats": 40,
+      "imageUrl": "https://example.com/event-banner.jpg"
+    },
+    "invalidCreatePayload": {
+      "category": "Conference",
+      "venue": "Automation Test Venue",
+      "city": "Bangalore",
+      "eventDate": "{utcNowPlusDays:15:O}",
+      "price": 1200,
+      "totalSeats": 40
+    }
+  },
+  "queries": {
+    "page": 1,
+    "limit": 5,
+    "category": "Conference",
+    "city": "Bangalore",
+    "search": "summit"
+  },
+  "assertions": {
+    "paginationField": "pagination",
+    "validationErrorField": "error",
+    "createdEventIdJsonPath": "data.id"
+  }
+}

@@ -1,0 +1,89 @@
+using Allure.NUnit;
+using Allure.NUnit.Attributes;
+using Allure.Net.Commons;
+using Framework.API;
+using Framework.Reporting;
+
+namespace APITests;
+
+[AllureNUnit]
+[AllureParentSuite("APITests")]
+[AllureSuite("Events API")]
+[AllureFeature("Events")]
+public class EventsAPITests : APITestBase
+{
+    [Test]
+    [Priority(TestPriority.Medium)]
+    [AllureStory("GET /api/events with query params")]
+    [AllureSeverity(SeverityLevel.normal)]
+    public async Task ListEvents_ShouldSupportPaginationAndFilters()
+    {
+        var response = await EventsApi.ListEventsAsync(
+            ApiData.Queries.Events.Page,
+            ApiData.Queries.Events.Limit,
+            ApiData.Queries.Events.Category,
+            ApiData.Queries.Events.City,
+            ApiData.Queries.Events.Search);
+
+        APIClient.ValidateStatusCode(response.StatusCode, 200);
+        Assert.That(response.ResponseBody, Does.Contain(ApiData.Assertions.Events.PaginationField));
+    }
+
+    [Test]
+    [Priority(TestPriority.High)]
+    [AllureStory("POST/PUT/DELETE /api/events/{id}")]
+    [AllureSeverity(SeverityLevel.critical)]
+    public async Task CreateUpdateDeleteEvent()
+    {
+        int createdEventId = 0;
+
+        try
+        {
+            var createPayload = BuildPayload(ApiData.Events.CreatePayload);
+            var createResponse = await EventsApi.CreateEventAsync(createPayload);
+            APIClient.ValidateStatusCode(createResponse.StatusCode, 201);
+
+            createdEventId = ExtractRequiredInt(
+                createResponse.ResponseBody,
+                ApiData.Assertions.Events.CreatedEventIdJsonPath,
+                "Created event id was not found in response.");
+            Assert.That(createdEventId, Is.GreaterThan(0));
+
+            var getResponse = await EventsApi.GetEventByIdAsync(createdEventId);
+            APIClient.ValidateStatusCode(getResponse.StatusCode, 200);
+
+            var updatePayload = BuildPayload(ApiData.Events.UpdatePayload);
+            var updateResponse = await EventsApi.UpdateEventAsync(createdEventId, updatePayload);
+            APIClient.ValidateStatusCode(updateResponse.StatusCode, 200);
+        }
+        finally
+        {
+            if (createdEventId > 0)
+            {
+                try
+                {
+                    var deleteResponse = await EventsApi.DeleteEventAsync(createdEventId);
+                    // Accept 200, 204 (deleted) or 404 (already deleted)
+                    Assert.That((int)deleteResponse.StatusCode, Is.AnyOf(200, 204, 404));
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning("[CLEANUP] Failed to delete event {EventId}. Error: {Error}", createdEventId, ex.Message);
+                }
+            }
+        }
+    }
+
+    [Test]
+    [Priority(TestPriority.Medium)]
+    [AllureStory("POST /api/events invalid payload")]
+    [AllureSeverity(SeverityLevel.normal)]
+    public async Task CreateEvent_WithInvalidPayload_ShouldReturnValidationError()
+    {
+        var invalidPayload = BuildPayload(ApiData.Events.InvalidCreatePayload);
+
+        var response = await EventsApi.CreateEventAsync(invalidPayload);
+        APIClient.ValidateStatusCode(response.StatusCode, 400);
+        Assert.That(response.ResponseBody, Does.Contain(ApiData.Assertions.Events.ValidationErrorField).IgnoreCase);
+    }
+}

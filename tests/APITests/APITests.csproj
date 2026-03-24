@@ -26,11 +26,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\APIPages\**\*.cs" Link="APIPages\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Pages\**\*.cs" Link="Pages\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Framework.Reporting\AllureHooks.cs" Link="Infrastructure\AllureHooks.cs" />
     <None Include="..\..\config\appsettings.json" Link="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="..\..\config\allureConfig.json" Link="allureConfig.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\resources\testdata\eventData.json" Link="TestData\eventData.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\resources\testdata\bookingData.json" Link="TestData\bookingData.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\resources\testdata\loginData.json" Link="TestData\loginData.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

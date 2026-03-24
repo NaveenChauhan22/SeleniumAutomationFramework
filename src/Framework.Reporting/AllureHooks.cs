@@ -29,20 +29,20 @@ public sealed class AllureHooks
             var solutionRoot = ResolveSolutionRoot();
             var reportsDirectory = Path.Combine(solutionRoot, "reports");
             var allureResultsDirectory = Path.Combine(reportsDirectory, "allure-results");
+            var binResultsDirectory = Path.Combine(AppContext.BaseDirectory, "allure-results");
 
             // Ensure parent directories exist before Allure tries to use them
             Directory.CreateDirectory(allureResultsDirectory);
 
-            // Also create reports directory in bin folder in case Allure uses relative path from there
-            var binReportsDirectory = Path.Combine(AppContext.BaseDirectory, "reports", "allure-results");
+            // Create suite-local results directory (under bin) to avoid one suite clearing another.
             try
             {
-                Directory.CreateDirectory(binReportsDirectory);
+                Directory.CreateDirectory(binResultsDirectory);
             }
             catch { /* Ignore failures for bin directory creation */ }
 
-            // Set environment variables for reference
-            Environment.SetEnvironmentVariable("ALLURE_RESULTS_DIRECTORY", allureResultsDirectory);
+            // Point Allure writer to bin-local directory; bootstrap will aggregate into reports/allure-results.
+            Environment.SetEnvironmentVariable("ALLURE_RESULTS_DIRECTORY", binResultsDirectory);
             Environment.SetEnvironmentVariable("ALLURE_REPORT_PATH", reportsDirectory);
         }
         catch (Exception ex)
