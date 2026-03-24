@@ -1,0 +1,48 @@
+{
+  "endpoints": {
+    "list": "/api/bookings",
+    "create": "/api/bookings",
+    "getById": "/api/bookings/{id}",
+    "getByReference": "/api/bookings/ref/{ref}",
+    "cancelById": "/api/bookings/{id}"
+  },
+  "bookings": {
+    "supportingEventPayload": {
+      "title": "Automation Event Booking {timestamp}",
+      "description": "Created by automated API test.",
+      "category": "Conference",
+      "venue": "Automation Test Venue",
+      "city": "Bangalore",
+      "eventDate": "{utcNowPlusDays:25:O}",
+      "price": 1200,
+      "totalSeats": 40,
+      "imageUrl": "https://example.com/event-banner.jpg"
+    },
+    "createPayload": {
+      "eventId": "{eventId}",
+      "customerName": "Automation Booker",
+      "customerEmail": "booking.autotest+{timestamp}@example.com",
+      "customerPhone": "+91-9876543210",
+      "quantity": 2
+    },
+    "invalidCreatePayload": {
+      "eventId": "{eventId}",
+      "customerName": "Automation Booker",
+      "customerEmail": "booking.autotest+{timestamp}@example.com",
+      "customerPhone": "+91-9876543210",
+      "quantity": 0
+    }
+  },
+  "queries": {
+    "page": 1,
+    "limit": 5,
+    "status": "confirmed"
+  },
+  "assertions": {
+    "paginationField": "pagination",
+    "validationErrorField": "error",
+    "createdBookingIdJsonPath": "data.id",
+    "bookingReferenceJsonPath": "data.bookingRef",
+    "supportingEventIdJsonPath": "data.id"
+  }
+}

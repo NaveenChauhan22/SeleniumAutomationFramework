@@ -25,6 +25,16 @@
     "email": "nonexistent@example.com",
     "password": "password123"
   },
+  "apiAuth": {
+    "endpoints": {
+      "login": "/api/auth/login",
+      "me": "/api/auth/me"
+    },
+    "assertions": {
+      "tokenJsonPath": "token",
+      "currentUserEmailJsonPath": "user.email"
+    }
+  },
   "assertions": {
     "homePageDomain": "eventhub.rahulshettyacademy.com",
     "loginPagePath": "/login"
