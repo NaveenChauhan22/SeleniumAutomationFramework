@@ -9,7 +9,7 @@ namespace UITests;
 [AllureParentSuite("UITests")]
 [AllureSuite("Home Navigation")]
 [AllureFeature("Navigation")]
-public class HomeNavigationTest : BaseTest
+public class HomeNavigationTests : BaseTest
 {
     private LoginTestData _loginData = null!;
     private HomePageAssertionData _homeData = null!;
@@ -23,6 +23,8 @@ public class HomeNavigationTest : BaseTest
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("Featured events defaults")]
     public void HomePage_EventsWithDefaults()
@@ -58,6 +60,8 @@ public class HomeNavigationTest : BaseTest
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.High)]
     [AllureStory("Browse events route")]
     public void HomePage_NavigateToEventsPage()
@@ -73,6 +77,8 @@ public class HomeNavigationTest : BaseTest
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("Bookings route")]
     public void HomePage_NavigateToBookingsPage()

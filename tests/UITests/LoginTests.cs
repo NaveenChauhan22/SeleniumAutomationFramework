@@ -22,6 +22,8 @@ public class LoginTests : BaseTest
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.High)]
     [AllureStory("Valid user login")]
     public void Login_WithValidCredentials()
@@ -36,7 +38,7 @@ public class LoginTests : BaseTest
         Assert.That(homePage.IsHomePageLoaded(), Is.True, "User did not land on home page after login.");
         Assert.That(homePage.GetCurrentUrl(), Does.Not.Contain(_data.Assertions.LoginPagePath),
             "User URL still indicates login page.");
-        
+
         var expectedDomain = new Uri(ConfigManager.GetString("TestSettings:BaseUrl")).Host;
         Assert.That(homePage.GetCurrentUrl(), Does.Contain(expectedDomain),
             "User is not on the expected application domain.");
@@ -44,6 +46,8 @@ public class LoginTests : BaseTest
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("Email validation")]
     public void Login_WithInvalidEmailFormat_ShouldShowEmailValidationError()
@@ -67,6 +71,8 @@ public class LoginTests : BaseTest
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("Password validation")]
     public void Login_WithShortPassword_ShouldShowPasswordValidationError()
@@ -90,6 +96,8 @@ public class LoginTests : BaseTest
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.High)]
     [AllureStory("Required field validation")]
     public void Login_WithEmptyFields_ShouldShowBothValidationErrors()
@@ -116,6 +124,8 @@ public class LoginTests : BaseTest
     }
 
     [Test]
+    [Category("Medium")]
+    [Category("Sanity")]
     [Priority(TestPriority.Low)]
     [AllureStory("Wrong password rejection")]
     public void Login_WithWrongPassword_ShouldBeOnLoginPage()
@@ -130,6 +140,8 @@ public class LoginTests : BaseTest
     }
 
     [Test]
+    [Category("Medium")]
+    [Category("Sanity")]
     [Priority(TestPriority.Low)]
     [AllureStory("Unregistered email rejection")]
     public void Login_WithUnregisteredEmail_ShouldBeOnLoginPage()
@@ -139,7 +151,7 @@ public class LoginTests : BaseTest
         var loginPage = new LoginPage(Driver, Wait);
         loginPage.AttemptToLoginWithInvalidCreds(scenario.Email, scenario.Password);
 
-       ReportHelper.AddStep("Verifying Login Button is displayed as we are on login page.");
-       Assert.That(loginPage.IsLoginButtonDisplayed(), Is.True, "Login button should be displayed when login fails");
+        ReportHelper.AddStep("Verifying Login Button is displayed as we are on login page.");
+        Assert.That(loginPage.IsLoginButtonDisplayed(), Is.True, "Login button should be displayed when login fails");
     }
 }

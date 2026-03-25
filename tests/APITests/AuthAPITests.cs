@@ -14,6 +14,8 @@ public class AuthAPITests : APITestBase
 {
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.High)]
     [AllureStory("GET /api/auth/me")]
     [AllureSeverity(SeverityLevel.critical)]
@@ -30,6 +32,8 @@ public class AuthAPITests : APITestBase
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("POST /api/auth/login invalid payload")]
     [AllureSeverity(SeverityLevel.normal)]

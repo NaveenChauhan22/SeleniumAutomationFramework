@@ -14,6 +14,8 @@ namespace APITests;
 public class BookingsAPITests : APITestBase
 {
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.High)]
     [AllureStory("POST/GET/DELETE /api/bookings")]
     [AllureSeverity(SeverityLevel.critical)]
@@ -85,6 +87,8 @@ public class BookingsAPITests : APITestBase
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("GET /api/bookings with query params")]
     [AllureSeverity(SeverityLevel.normal)]
@@ -152,6 +156,8 @@ public class BookingsAPITests : APITestBase
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("POST /api/bookings invalid payload")]
     [AllureSeverity(SeverityLevel.normal)]

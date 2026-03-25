@@ -13,6 +13,8 @@ namespace APITests;
 public class EventsAPITests : APITestBase
 {
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("GET /api/events with query params")]
     [AllureSeverity(SeverityLevel.normal)]
@@ -30,6 +32,8 @@ public class EventsAPITests : APITestBase
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.High)]
     [AllureStory("POST/PUT/DELETE /api/events/{id}")]
     [AllureSeverity(SeverityLevel.critical)]
@@ -75,6 +79,8 @@ public class EventsAPITests : APITestBase
     }
 
     [Test]
+    [Category("High")]
+    [Category("Smoke")]
     [Priority(TestPriority.Medium)]
     [AllureStory("POST /api/events invalid payload")]
     [AllureSeverity(SeverityLevel.normal)]
