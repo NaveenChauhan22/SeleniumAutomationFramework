@@ -179,12 +179,28 @@ public static class AllureBootstrap
 
         Directory.CreateDirectory(targetHistoryDirectory);
 
-        foreach (var sourceFile in Directory.GetFiles(sourceHistoryDirectory, "*", SearchOption.AllDirectories))
+        // Use a named cross-process mutex so that when dotnet test runs APITests and UITests
+        // in parallel (as separate OS processes), only one process copies the history files
+        // at a time, preventing IOException: "file is being used by another process".
+        using var mutex = new Mutex(false, "SeleniumFrameworkAllureHistoryMutex");
+        var acquired = false;
+        try
         {
-            var relativePath = Path.GetRelativePath(sourceHistoryDirectory, sourceFile);
-            var destinationFile = Path.Combine(targetHistoryDirectory, relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
-            File.Copy(sourceFile, destinationFile, true);
+            acquired = mutex.WaitOne(TimeSpan.FromSeconds(30));
+            foreach (var sourceFile in Directory.GetFiles(sourceHistoryDirectory, "*", SearchOption.AllDirectories))
+            {
+                var relativePath = Path.GetRelativePath(sourceHistoryDirectory, sourceFile);
+                var destinationFile = Path.Combine(targetHistoryDirectory, relativePath);
+                Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+                File.Copy(sourceFile, destinationFile, true);
+            }
+        }
+        finally
+        {
+            if (acquired)
+            {
+                mutex.ReleaseMutex();
+            }
         }
     }
 
