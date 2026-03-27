@@ -28,7 +28,11 @@ public class EventsAPITests : APITestBase
             ApiData.Queries.Events.Search);
 
         APIClient.ValidateStatusCode(response.StatusCode, 200);
-        Assert.That(response.ResponseBody, Does.Contain(ApiData.Assertions.Events.PaginationField));
+
+        // Validate pagination field exists using Response Validation Framework
+        ResponseValidator
+            .FromContent(response.ResponseBody)
+            .ValidateFieldExists(ApiData.Assertions.Events.PaginationField);
     }
 
     [Test]
@@ -47,6 +51,12 @@ public class EventsAPITests : APITestBase
             var createResponse = await EventsApi.CreateEventAsync(createPayload);
             APIClient.ValidateStatusCode(createResponse.StatusCode, 201);
 
+            // Validate event ID exists and extract it using Response Validation Framework
+            ResponseValidator
+                .FromContent(createResponse.ResponseBody)
+                .ValidateFieldExists(ApiData.Assertions.Events.CreatedEventIdJsonPath);
+
+            // Extract ID for further operations
             createdEventId = ExtractRequiredInt(
                 createResponse.ResponseBody,
                 ApiData.Assertions.Events.CreatedEventIdJsonPath,
@@ -90,6 +100,10 @@ public class EventsAPITests : APITestBase
 
         var response = await EventsApi.CreateEventAsync(invalidPayload);
         APIClient.ValidateStatusCode(response.StatusCode, 400);
-        Assert.That(response.ResponseBody, Does.Contain(ApiData.Assertions.Events.ValidationErrorField).IgnoreCase);
+
+        // Validate error response using Response Validation Framework
+        ResponseValidator
+            .FromContent(response.ResponseBody)
+            .ValidateFieldExists(ApiData.Assertions.Events.ValidationErrorField);
     }
 }

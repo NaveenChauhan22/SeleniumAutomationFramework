@@ -5,9 +5,9 @@ namespace APITests.APIPages;
 public sealed class AuthAPIPage(
     APIClient apiClient,
     Serilog.ILogger logger,
-    Func<string?> tokenAccessor,
+    AuthClient authClient,
     ApiSuiteData.EndpointData.AuthEndpointData endpoints)
-    : BaseAPIPage(apiClient, logger, tokenAccessor)
+    : BaseAPIPage(apiClient, logger, authClient)
 {
     private readonly ApiSuiteData.EndpointData.AuthEndpointData _endpoints = endpoints ?? throw new ArgumentNullException(nameof(endpoints), "Auth endpoint data cannot be null.");
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse>
+  <Success>true</Success>
+  <Data>
+    <User>
+      <Id>12345</Id>
+      <Email>automation@test.example.com</Email>
+      <Name>Test User</Name>
+      <Status>Active</Status>
+      <CreatedAt>2026-03-27T07:15:23Z</CreatedAt>
+    </User>
+  </Data>
+  <Message>User retrieved successfully</Message>
+</ApiResponse>

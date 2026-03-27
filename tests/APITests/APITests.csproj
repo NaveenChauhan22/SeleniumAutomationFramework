@@ -44,6 +44,9 @@
     <None Include="..\..\resources\testdata\loginData.json" Link="TestData\loginData.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\..\resources\testdata\xml\*.xml" Link="TestData\xml\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

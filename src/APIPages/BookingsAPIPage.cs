@@ -5,9 +5,9 @@ namespace APITests.APIPages;
 public sealed class BookingsAPIPage(
     APIClient apiClient,
     Serilog.ILogger logger,
-    Func<string?> tokenAccessor,
+    AuthClient authClient,
     ApiSuiteData.EndpointData.BookingEndpointData endpoints)
-    : BaseAPIPage(apiClient, logger, tokenAccessor)
+    : BaseAPIPage(apiClient, logger, authClient)
 {
     private readonly ApiSuiteData.EndpointData.BookingEndpointData _endpoints = endpoints ?? throw new ArgumentNullException(nameof(endpoints), "Booking endpoint data cannot be null.");
 
