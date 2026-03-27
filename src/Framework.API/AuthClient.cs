@@ -4,7 +4,7 @@ using System;
 namespace Framework.API;
 
 /// <summary>
-/// Client for API authentication operations (login, token refresh).
+/// Client for API authentication operations used by the test framework.
 /// Works in conjunction with ApiSessionContext to manage token lifecycle.
 /// 
 /// Thread safety:
@@ -13,7 +13,8 @@ namespace Framework.API;
 /// 
 /// Responsibilities:
 /// - Perform login API call and extract token from response
-/// - Perform token refresh API calls (when implemented by backend)
+/// - Re-authenticate using stored credentials when the current token expires
+/// - Perform token refresh API calls only when the backend explicitly supports them
 /// - Calculate token expiration time
 /// - Store tokens in ApiSessionContext (in-memory only)
 /// </summary>
@@ -168,11 +169,13 @@ public sealed class AuthClient
     }
 
     /// <summary>
-    /// Refreshes the current authentication token using the refresh-token endpoint.
-    /// This is typically called automatically before API calls if the token is expiring.
+    /// Refreshes the current authentication token using a dedicated refresh-token endpoint.
+    /// This method is an extension point for backends that return refresh tokens and expose a refresh API.
+    /// The current framework runtime primarily relies on re-authentication with stored credentials.
     /// 
-    /// NOTE: Only implement this if your backend supports token refresh endpoints.
-    /// If not supported or if the refresh fails, you may need to re-login.
+    /// NOTE: Only call this when your backend supports token refresh endpoints.
+    /// If refresh is not supported or if the refresh fails, callers should fall back to LoginAsync or
+    /// ReauthenticateIfStoredCredentialsAsync.
     /// </summary>
     /// <param name="refreshToken">The refresh token from the current session.</param>
     /// <param name="refreshEndpoint">The API endpoint for token refresh (e.g., "/api/auth/refresh").</param>
@@ -264,7 +267,7 @@ public sealed class AuthClient
 
     /// <summary>
     /// Gets the current valid token from the session context.
-    /// If the token is expired or expiring, returns null (caller should refresh).
+    /// If the token is expired or expiring, returns null so the caller can renew it.
     /// </summary>
     public string? GetCurrentToken()
     {
@@ -296,13 +299,13 @@ public sealed class AuthClient
         {
             throw new InvalidOperationException(
                 $"Authentication token has expired or is expiring soon (expires at {token.ExpiresAt:O}). " +
-                "Token refresh is required. Call RefreshTokenAsync() to obtain a new token.");
+                "Renew the token before continuing by re-authenticating, or call RefreshTokenAsync() only when the backend supports refresh tokens.");
         }
     }
 
     /// <summary>
     /// Forces re-authentication using stored credentials from the session context.
-    /// Called automatically when an authenticated request fails due to token expiry mid-test.
+    /// This is the active automatic renewal path used by the framework when the current token expires.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>The new TokenState after re-authentication.</returns>
@@ -334,7 +337,7 @@ public sealed class AuthClient
     }
 
     /// <summary>
-    /// Extracts token from the API login/refresh response using JSONPath.
+    /// Extracts token from the API login or refresh response using JSONPath.
     /// Calculates expiration time based on default TTL.
     /// </summary>
     private TokenState ExtractTokenFromResponse(string responseBody)
