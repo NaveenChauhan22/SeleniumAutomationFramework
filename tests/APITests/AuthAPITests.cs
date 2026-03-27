@@ -24,11 +24,12 @@ public class AuthAPITests : APITestBase
         var meResponse = await AuthApi.GetCurrentUserAsync();
         APIClient.ValidateStatusCode(meResponse.StatusCode, 200);
 
-        var email = ExtractRequiredString(
-            meResponse.ResponseBody,
-            ApiData.Assertions.Auth.CurrentUserEmailJsonPath,
-            "User email should be returned from current user response.");
-        Assert.That(email, Is.Not.Null.And.Not.Empty);
+        // Validate response contains expected user fields using Response Validation Framework
+        ResponseValidator
+            .FromContent(meResponse.ResponseBody)
+            .ValidateFieldExists(ApiData.Assertions.Auth.CurrentUserEmailJsonPath)
+            .ValidateFieldExists("user.userId")
+            .ValidateContains("user.email", LoginData.ValidCredentials.Email);
     }
 
     [Test]
@@ -43,5 +44,10 @@ public class AuthAPITests : APITestBase
             LoginData.WrongPasswordScenario.Email,
             LoginData.WrongPasswordScenario.Password);
         APIClient.ValidateStatusCode(response.StatusCode, 400);
+
+        // Validate error response using Response Validation Framework
+        ResponseValidator
+            .FromContent(response.ResponseBody)
+            .ValidateFieldExists("error");
     }
 }

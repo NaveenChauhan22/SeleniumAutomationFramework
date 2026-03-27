@@ -28,6 +28,13 @@ public class BookingsAPITests : APITestBase
         {
             var eventResponse = await EventsApi.CreateEventAsync(BuildPayload(ApiData.Bookings.SupportingEventPayload));
             APIClient.ValidateStatusCode(eventResponse.StatusCode, 201);
+            
+            // Validate event ID exists using Response Validation Framework
+            ResponseValidator
+                .FromContent(eventResponse.ResponseBody)
+                .ValidateFieldExists(ApiData.Assertions.Bookings.SupportingEventIdJsonPath)
+                .ValidateType(ApiData.Assertions.Bookings.SupportingEventIdJsonPath, typeof(int));
+            
             eventId = ExtractRequiredInt(
                 eventResponse.ResponseBody,
                 ApiData.Assertions.Bookings.SupportingEventIdJsonPath,
@@ -40,6 +47,13 @@ public class BookingsAPITests : APITestBase
                     ["eventId"] = JToken.FromObject(eventId)
                 }));
             APIClient.ValidateStatusCode(bookingResponse.StatusCode, 201);
+
+            // Validate booking ID and reference using Response Validation Framework
+            ResponseValidator
+                .FromContent(bookingResponse.ResponseBody)
+                .ValidateFieldExists(ApiData.Assertions.Bookings.CreatedBookingIdJsonPath)
+                .ValidateFieldExists(ApiData.Assertions.Bookings.BookingReferenceJsonPath)
+                .ValidateType(ApiData.Assertions.Bookings.BookingReferenceJsonPath, typeof(string));
 
             bookingId = ExtractRequiredInt(
                 bookingResponse.ResponseBody,
@@ -101,6 +115,13 @@ public class BookingsAPITests : APITestBase
         {
             var eventResponse = await EventsApi.CreateEventAsync(BuildPayload(ApiData.Bookings.SupportingEventPayload));
             APIClient.ValidateStatusCode(eventResponse.StatusCode, 201);
+            
+            // Validate event ID exists using Response Validation Framework
+            ResponseValidator
+                .FromContent(eventResponse.ResponseBody)
+                .ValidateFieldExists(ApiData.Assertions.Bookings.SupportingEventIdJsonPath)
+                .ValidateType(ApiData.Assertions.Bookings.SupportingEventIdJsonPath, typeof(int));
+            
             eventId = ExtractRequiredInt(
                 eventResponse.ResponseBody,
                 ApiData.Assertions.Bookings.SupportingEventIdJsonPath,
@@ -113,6 +134,12 @@ public class BookingsAPITests : APITestBase
                     ["eventId"] = JToken.FromObject(eventId)
                 }));
             APIClient.ValidateStatusCode(bookingResponse.StatusCode, 201);
+            
+            // Validate booking ID exists using Response Validation Framework
+            ResponseValidator
+                .FromContent(bookingResponse.ResponseBody)
+                .ValidateFieldExists(ApiData.Assertions.Bookings.CreatedBookingIdJsonPath);
+            
             bookingId = ExtractRequiredInt(
                 bookingResponse.ResponseBody,
                 ApiData.Assertions.Bookings.CreatedBookingIdJsonPath,
@@ -125,7 +152,11 @@ public class BookingsAPITests : APITestBase
                 eventId);
 
             APIClient.ValidateStatusCode(listResponse.StatusCode, 200);
-            Assert.That(listResponse.ResponseBody, Does.Contain(ApiData.Assertions.Bookings.PaginationField));
+            
+            // Validate pagination field exists using Response Validation Framework
+            ResponseValidator
+                .FromContent(listResponse.ResponseBody)
+                .ValidateFieldExists(ApiData.Assertions.Bookings.PaginationField);
         }
         finally
         {
@@ -169,6 +200,13 @@ public class BookingsAPITests : APITestBase
         {
             var eventResponse = await EventsApi.CreateEventAsync(BuildPayload(ApiData.Bookings.SupportingEventPayload));
             APIClient.ValidateStatusCode(eventResponse.StatusCode, 201);
+            
+            // Validate event ID exists using Response Validation Framework
+            ResponseValidator
+                .FromContent(eventResponse.ResponseBody)
+                .ValidateFieldExists(ApiData.Assertions.Bookings.SupportingEventIdJsonPath)
+                .ValidateType(ApiData.Assertions.Bookings.SupportingEventIdJsonPath, typeof(int));
+            
             eventId = ExtractRequiredInt(
                 eventResponse.ResponseBody,
                 ApiData.Assertions.Bookings.SupportingEventIdJsonPath,
@@ -183,7 +221,11 @@ public class BookingsAPITests : APITestBase
 
             var response = await BookingsApi.CreateBookingAsync(invalidPayload);
             APIClient.ValidateStatusCode(response.StatusCode, 400);
-            Assert.That(response.ResponseBody, Does.Contain(ApiData.Assertions.Bookings.ValidationErrorField).IgnoreCase);
+            
+            // Validate error response using Response Validation Framework
+            ResponseValidator
+                .FromContent(response.ResponseBody)
+                .ValidateFieldExists(ApiData.Assertions.Bookings.ValidationErrorField);
         }
         finally
         {

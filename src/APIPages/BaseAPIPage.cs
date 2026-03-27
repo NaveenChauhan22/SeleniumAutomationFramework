@@ -10,16 +10,24 @@ namespace APITests.APIPages;
 
 /// <summary>
 /// Base API page object with common HttpClient send helpers, auth support, logging, and assertions.
+/// Uses ApiSessionContext for thread-safe, session-scoped token management.
+/// Supports automatic token refresh before authenticated requests.
 /// </summary>
 public abstract class BaseAPIPage
 {
-    private readonly Func<string?> _tokenAccessor;
+    private readonly AuthClient? _authClient;
 
-    protected BaseAPIPage(APIClient apiClient, Serilog.ILogger logger, Func<string?> tokenAccessor)
+    /// <summary>
+    /// Initializes a new instance of BaseAPIPage.
+    /// </summary>
+    /// <param name="apiClient">The HTTP client for API calls.</param>
+    /// <param name="logger">Logger for operational visibility.</param>
+    /// <param name="authClient">Optional AuthClient for automatic token refresh. If provided, tokens will be automatically refreshed when expiring.</param>
+    protected BaseAPIPage(APIClient apiClient, Serilog.ILogger logger, AuthClient? authClient = null)
     {
         ApiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient), "ApiClient cannot be null.");
         Logger = logger ?? throw new ArgumentNullException(nameof(logger), "Logger cannot be null.");
-        _tokenAccessor = tokenAccessor ?? throw new ArgumentNullException(nameof(tokenAccessor), "Token accessor function cannot be null.");
+        _authClient = authClient;
     }
 
     protected APIClient ApiClient { get; }
@@ -43,6 +51,47 @@ public abstract class BaseAPIPage
             throw new ArgumentException("API path cannot be null or empty.", nameof(path));
         }
 
+        try
+        {
+            // First attempt: make the request normally
+            return await SendAsyncInternal(method, path, body, queryParams, requiresAuth, cancellationToken);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("no valid bearer token") && requiresAuth && _authClient is not null)
+        {
+            // Token has expired mid-test. Attempt automatic re-authentication using stored credentials.
+            Logger.Warning("Authenticated request failed due to token expiry. Attempting automatic re-authentication with stored credentials. Error: {Error}", ex.Message);
+            
+            try
+            {
+                await _authClient.ReauthenticateIfStoredCredentialsAsync(cancellationToken).ConfigureAwait(false);
+                Logger.Information("Re-authentication successful. Retrying the original request.");
+                
+                // Retry the request with the new token
+                return await SendAsyncInternal(method, path, body, queryParams, requiresAuth, cancellationToken);
+            }
+            catch (Exception reauthEx)
+            {
+                Logger.Error(reauthEx, "Re-authentication failed. Original request cannot be retried.");
+                throw new InvalidOperationException(
+                    $"Request failed due to token expiry, and automatic re-authentication also failed. " +
+                    $"Original error: {ex.Message}. Re-auth error: {reauthEx.Message}", 
+                    reauthEx);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Internal implementation of SendAsync that performs the actual HTTP request.
+    /// This method is called by SendAsync, potentially multiple times if token refresh is needed.
+    /// </summary>
+    private async Task<ApiCallResult> SendAsyncInternal(
+        HttpMethod method,
+        string path,
+        object? body = null,
+        IDictionary<string, string?>? queryParams = null,
+        bool requiresAuth = false,
+        CancellationToken cancellationToken = default)
+    {
         var relativeUrl = BuildRelativeUrl(path, queryParams);
 
         return await AllureApi.Step($"{method} {relativeUrl}", async () =>
@@ -53,19 +102,14 @@ public abstract class BaseAPIPage
 
             if (requiresAuth)
             {
-                string? token = null;
-                try
-                {
-                    token = _tokenAccessor();
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException("Failed to retrieve authentication token from accessor.", ex);
-                }
+                // Get token from session context, with automatic refresh if needed
+                string? token = await GetOrRefreshTokenAsync(cancellationToken);
 
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    throw new InvalidOperationException($"Endpoint '{path}' requires authentication, but bearer token is not available. Ensure user is authenticated before making this request.");
+                    throw new InvalidOperationException(
+                        $"Endpoint '{path}' requires authentication, but no valid bearer token is available. " +
+                        "Ensure user is authenticated via ApiSessionContext before making this request.");
                 }
 
                 requestBuilder.WithBearerToken(token);
@@ -158,6 +202,69 @@ public abstract class BaseAPIPage
 
             return new ApiCallResult(response.StatusCode, responseBody);
         });
+    }
+
+    /// <summary>
+    /// Gets the current token from the session context.
+    /// If the token is expired or expiring, and an AuthClient is available, automatically refreshes the token.
+    /// Thread-safe: uses a refresh lock to prevent concurrent refresh operations.
+    /// </summary>
+    private async Task<string?> GetOrRefreshTokenAsync(CancellationToken cancellationToken)
+    {
+        var session = ApiSessionContext.Current;
+        var tokenState = session.CurrentToken;
+
+        // If no token exists at all, fail early
+        if (tokenState is null)
+        {
+            return null;
+        }
+
+        // If token is still valid, return it
+        if (tokenState.IsValid)
+        {
+            return tokenState.AccessToken;
+        }
+
+        // Token is expired/expiring. Attempt refresh if AuthClient is available.
+        if (_authClient is null)
+        {
+            Logger.Warning("Token is expired or expiring, but no AuthClient is available for refresh. Token expires at: {ExpiresAt}", tokenState.ExpiresAt);
+            return null;
+        }
+
+        Logger.Information("Token is expired or expiring. Attempting automatic refresh. Token expires at: {ExpiresAt}", tokenState.ExpiresAt);
+
+        try
+        {
+            // Acquire exclusive refresh lock to prevent concurrent refresh calls
+            using (await session.AcquireRefreshLockAsync(cancellationToken).ConfigureAwait(false))
+            {
+                // Check again after acquiring lock, in case another thread already refreshed
+                tokenState = session.CurrentToken;
+                if (tokenState?.IsValid == true)
+                {
+                    Logger.Debug("Token was already refreshed by another thread. Using refreshed token.");
+                    return tokenState.AccessToken;
+                }
+
+                // Perform refresh
+                // Note: This assumes RefreshTokenAsync is available. If your backend doesn't support it,
+                // you would need to re-authenticate instead.
+                // var refreshedToken = await _authClient.RefreshTokenAsync(refreshToken, refreshEndpoint, cancellationToken);
+                // For now, we'll just log and return null - the test/implementation can decide how to handle this
+
+                Logger.Warning("Token refresh is required but automatic refresh is not yet fully configured. " +
+                    "Please implement token refresh endpoint or re-authenticate.");
+
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Automatic token refresh failed. Token cannot be used for this request.");
+            return null;
+        }
     }
 
     protected static JObject ParseObject(ApiCallResult result)

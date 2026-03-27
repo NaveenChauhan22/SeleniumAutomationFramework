@@ -15,7 +15,6 @@ public class APIClient : IDisposable
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<APIClient> _logger;
-    private bool _disposed;
 
     public bool ShowBearerToken { get; set; } = true;
 
@@ -90,16 +89,11 @@ public class APIClient : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
         // Do not dispose the injected HttpClient here.
         // The composition root (DI container or test fixture) is responsible for managing
         // the lifecycle of the injected HttpClient. Disposing it here would break other
         // consumers in a shared test runtime.
-        _disposed = true;
+        // Intentionally no-op.
     }
 
     private static async Task<string> FormatRequestAsync(HttpRequestMessage request, CancellationToken cancellationToken)
