@@ -11,7 +11,7 @@ namespace APITests.APIPages;
 /// <summary>
 /// Base API page object with common HttpClient send helpers, auth support, logging, and assertions.
 /// Uses ApiSessionContext for thread-safe, session-scoped token management.
-/// Supports automatic token refresh before authenticated requests.
+/// Supports automatic token renewal before authenticated requests.
 /// </summary>
 public abstract class BaseAPIPage
 {
@@ -22,7 +22,7 @@ public abstract class BaseAPIPage
     /// </summary>
     /// <param name="apiClient">The HTTP client for API calls.</param>
     /// <param name="logger">Logger for operational visibility.</param>
-    /// <param name="authClient">Optional AuthClient for automatic token refresh. If provided, tokens will be automatically refreshed when expiring.</param>
+    /// <param name="authClient">Optional AuthClient for automatic re-authentication. If provided, expiring tokens will be renewed before authenticated requests.</param>
     protected BaseAPIPage(APIClient apiClient, Serilog.ILogger logger, AuthClient? authClient = null)
     {
         ApiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient), "ApiClient cannot be null.");
@@ -82,7 +82,7 @@ public abstract class BaseAPIPage
 
     /// <summary>
     /// Internal implementation of SendAsync that performs the actual HTTP request.
-    /// This method is called by SendAsync, potentially multiple times if token refresh is needed.
+    /// This method is called by SendAsync, potentially multiple times if token renewal is needed.
     /// </summary>
     private async Task<ApiCallResult> SendAsyncInternal(
         HttpMethod method,
@@ -102,7 +102,7 @@ public abstract class BaseAPIPage
 
             if (requiresAuth)
             {
-                // Get token from session context, with automatic refresh if needed
+                // Get token from session context, renewing it first when it is expired or close to expiry.
                 string? token = await GetOrRefreshTokenAsync(cancellationToken);
 
                 if (string.IsNullOrWhiteSpace(token))
@@ -206,8 +206,8 @@ public abstract class BaseAPIPage
 
     /// <summary>
     /// Gets the current token from the session context.
-    /// If the token is expired or expiring, and an AuthClient is available, automatically refreshes the token.
-    /// Thread-safe: uses a refresh lock to prevent concurrent refresh operations.
+    /// If the token is expired or expiring, and an AuthClient is available, automatically re-authenticates using stored credentials.
+    /// Thread-safe: uses a refresh lock to prevent concurrent token renewal operations.
     /// </summary>
     private async Task<string?> GetOrRefreshTokenAsync(CancellationToken cancellationToken)
     {
@@ -226,43 +226,42 @@ public abstract class BaseAPIPage
             return tokenState.AccessToken;
         }
 
-        // Token is expired/expiring. Attempt refresh if AuthClient is available.
+        // Token is expired/expiring. Attempt renewal if AuthClient is available.
         if (_authClient is null)
         {
-            Logger.Warning("Token is expired or expiring, but no AuthClient is available for refresh. Token expires at: {ExpiresAt}", tokenState.ExpiresAt);
+            Logger.Warning("Token is expired or expiring, but no AuthClient is available for re-authentication. Token expires at: {ExpiresAt}", tokenState.ExpiresAt);
             return null;
         }
 
-        Logger.Information("Token is expired or expiring. Attempting automatic refresh. Token expires at: {ExpiresAt}", tokenState.ExpiresAt);
+        Logger.Information("Token is expired or expiring. Attempting automatic re-authentication before sending the request. Token expires at: {ExpiresAt}", tokenState.ExpiresAt);
 
         try
         {
-            // Acquire exclusive refresh lock to prevent concurrent refresh calls
+            // Acquire exclusive renewal lock to prevent concurrent re-authentication calls.
             using (await session.AcquireRefreshLockAsync(cancellationToken).ConfigureAwait(false))
             {
-                // Check again after acquiring lock, in case another thread already refreshed
+                // Check again after acquiring the lock in case another thread already renewed the token.
                 tokenState = session.CurrentToken;
                 if (tokenState?.IsValid == true)
                 {
-                    Logger.Debug("Token was already refreshed by another thread. Using refreshed token.");
+                    Logger.Debug("Token was already renewed by another thread. Using the current valid token.");
                     return tokenState.AccessToken;
                 }
 
-                // Perform refresh
-                // Note: This assumes RefreshTokenAsync is available. If your backend doesn't support it,
-                // you would need to re-authenticate instead.
-                // var refreshedToken = await _authClient.RefreshTokenAsync(refreshToken, refreshEndpoint, cancellationToken);
-                // For now, we'll just log and return null - the test/implementation can decide how to handle this
+                var renewedToken = await _authClient.ReauthenticateIfStoredCredentialsAsync(cancellationToken).ConfigureAwait(false);
+                if (renewedToken.IsValid)
+                {
+                    Logger.Information("Token renewal completed successfully. New expiration: {ExpiresAt}", renewedToken.ExpiresAt);
+                    return renewedToken.AccessToken;
+                }
 
-                Logger.Warning("Token refresh is required but automatic refresh is not yet fully configured. " +
-                    "Please implement token refresh endpoint or re-authenticate.");
-
+                Logger.Warning("Re-authentication completed but returned a token that is already expired or within the grace period. Expires at: {ExpiresAt}", renewedToken.ExpiresAt);
                 return null;
             }
         }
         catch (Exception ex)
         {
-            Logger.Error(ex, "Automatic token refresh failed. Token cannot be used for this request.");
+            Logger.Error(ex, "Automatic token renewal failed before the request was sent. The request will continue through the existing failure path if no valid token is available.");
             return null;
         }
     }
