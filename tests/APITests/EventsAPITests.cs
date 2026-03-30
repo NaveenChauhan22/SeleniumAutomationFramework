@@ -6,6 +6,7 @@ using Framework.Reporting;
 
 namespace APITests;
 
+[Parallelizable(ParallelScope.Self)]
 [AllureNUnit]
 [AllureParentSuite("APITests")]
 [AllureSuite("Events API")]

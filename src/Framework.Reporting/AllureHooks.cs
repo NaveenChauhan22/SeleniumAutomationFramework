@@ -41,9 +41,19 @@ public sealed class AllureHooks
             }
             catch { /* Ignore failures for bin directory creation */ }
 
-            // Point Allure writer to bin-local directory; bootstrap will aggregate into reports/allure-results.
-            Environment.SetEnvironmentVariable("ALLURE_RESULTS_DIRECTORY", binResultsDirectory);
-            Environment.SetEnvironmentVariable("ALLURE_REPORT_PATH", reportsDirectory);
+            // Respect externally provided paths (for cross-browser parallel process isolation).
+            // Fallback to bin-local directory so default behavior remains unchanged.
+            var configuredResultsDirectory = Environment.GetEnvironmentVariable("ALLURE_RESULTS_DIRECTORY");
+            if (string.IsNullOrWhiteSpace(configuredResultsDirectory))
+            {
+                Environment.SetEnvironmentVariable("ALLURE_RESULTS_DIRECTORY", binResultsDirectory);
+            }
+
+            var configuredReportPath = Environment.GetEnvironmentVariable("ALLURE_REPORT_PATH");
+            if (string.IsNullOrWhiteSpace(configuredReportPath))
+            {
+                Environment.SetEnvironmentVariable("ALLURE_REPORT_PATH", reportsDirectory);
+            }
         }
         catch (Exception ex)
         {

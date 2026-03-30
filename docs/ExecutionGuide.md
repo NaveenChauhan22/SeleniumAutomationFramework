@@ -1,19 +1,21 @@
 # Execution Guide
 
-This guide covers how to run tests, target specific browsers, filter by category, generate Allure reports, and integrate with CI/CD pipelines.
+This guide covers local execution modes, NUnit-based parallel execution, cross-browser strategy, CI/CD setup and execution, Allure reporting, and what is implemented in this framework.
 
 ---
 
 ## Table of Contents
 
 1. [Quick Start](#1-quick-start)
-2. [Running Tests by Suite](#2-running-tests-by-suite)
-3. [Cross-Browser Execution](#3-cross-browser-execution)
-4. [Headless Mode](#4-headless-mode)
-5. [NUnit Test Filtering](#5-nunit-test-filtering)
-6. [Allure Reports](#6-allure-reports)
-7. [CI/CD Pipeline Integration](#7-cicd-pipeline-integration)
-8. [Troubleshooting](#8-troubleshooting)
+2. [Execution Modes](#2-execution-modes)
+3. [Running Tests by Suite](#3-running-tests-by-suite)
+4. [Cross-Browser Execution](#4-cross-browser-execution)
+5. [Headless Mode](#5-headless-mode)
+6. [NUnit Test Filtering](#6-nunit-test-filtering)
+7. [Allure Reports](#7-allure-reports)
+8. [CI/CD Pipeline Integration](#8-cicd-pipeline-integration)
+9. [What Is Implemented](#9-what-is-implemented)
+10. [Troubleshooting](#10-troubleshooting)
 
 ---
 
@@ -39,7 +41,87 @@ dotnet test ./SeleniumAutomationFramework.sln
 
 ---
 
-## 2. Running Tests by Suite
+## 2. Execution Modes
+
+### 2.1 Parallel Run (Default)
+
+UI fixtures are annotated with `[FixtureLifeCycle(LifeCycle.InstancePerTestCase)]` + `[Parallelizable(ParallelScope.All)]`, API fixtures use `[Parallelizable(ParallelScope.Self)]`, and the test assemblies receive `[assembly: LevelOfParallelism(4)]` from `tests/AssemblyInfo.cs` (included by `tests/Directory.Build.props`). NUnit distributes eligible tests across up to 4 worker threads automatically — no runsettings file required.
+
+**Windows (PowerShell):**
+```powershell
+dotnet test .\SeleniumAutomationFramework.sln
+```
+
+**macOS (Terminal):**
+```bash
+dotnet test ./SeleniumAutomationFramework.sln
+```
+
+What runs in parallel:
+- UI test methods inside `LoginTests` and `HomeNavigationTests` (same browser process)
+- `AuthAPITests` ↔ `BookingsAPITests` ↔ `EventsAPITests` (API)
+
+### 2.2 Sequential Run (Debug / Isolation)
+
+Pass `NUnit.NumberOfTestWorkers=0` directly on the command line to override the assembly-level setting and force single-threaded execution. No runsettings file needed.
+
+**Windows (PowerShell):**
+```powershell
+dotnet test .\SeleniumAutomationFramework.sln -- NUnit.NumberOfTestWorkers=0
+```
+
+**macOS (Terminal):**
+```bash
+dotnet test ./SeleniumAutomationFramework.sln -- NUnit.NumberOfTestWorkers=0
+```
+
+> The `--` separator passes options directly to the NUnit adapter at runtime, overriding in-code settings without changing source.
+
+### 2.3 Cross-Browser Runs
+
+Run the same UI tests against different browsers by setting the `TestSettings__Browser` environment variable. Each invocation is a separate process with its own browser instance — no fixture-level conflict.
+
+**Windows (PowerShell):**
+```powershell
+# Chrome (default)
+dotnet test .\tests\UITests\UITests.csproj
+
+# Edge
+$env:TestSettings__Browser = "edge"
+dotnet test .\tests\UITests\UITests.csproj
+
+# Firefox
+$env:TestSettings__Browser = "firefox"
+dotnet test .\tests\UITests\UITests.csproj
+```
+
+**macOS (Bash/Zsh):**
+```bash
+export TestSettings__Browser="edge"
+dotnet test ./tests/UITests/UITests.csproj
+```
+
+To run multiple browsers in true parallel, open **separate terminals** (or use a CI matrix — see Section 8) and set the env var per terminal before running.
+
+### 2.4 API + UI Together
+
+Both suites write to the same `reports/allure-results/` folder. Run both projects in one command:
+
+**Windows (PowerShell):**
+```powershell
+dotnet test .\SeleniumAutomationFramework.sln
+```
+
+**macOS (Terminal):**
+```bash
+dotnet test ./SeleniumAutomationFramework.sln
+```
+
+NUnit's parallel workers will run API fixtures and UI fixtures concurrently within that single invocation.
+
+---
+
+## 3. Running Tests by Suite
 
 ### API Tests Only
 
@@ -83,7 +165,7 @@ dotnet test ./tests/APITests/APITests.csproj --no-build
 
 ---
 
-## 3. Cross-Browser Execution
+## 4. Cross-Browser Execution
 
 The default browser is **Chrome**. You can override it using environment variables, the `.env` file, or `appsettings.json`.
 
@@ -210,7 +292,7 @@ unset TestSettings__Browser
 
 ---
 
-## 4. Headless Mode
+## 5. Headless Mode
 
 Headless mode runs the browser without a visible window. It is ~10–15% faster and recommended for CI/CD.
 
@@ -260,7 +342,7 @@ dotnet test ./tests/UITests/UITests.csproj
 
 ---
 
-## 5. NUnit Test Filtering
+## 6. NUnit Test Filtering
 
 Tests are assigned NUnit categories via the `[Priority]` attribute.
 
@@ -388,7 +470,7 @@ dotnet test ./tests/APITests/APITests.csproj --list-tests
 
 ---
 
-## 6. Allure Reports
+## 7. Allure Reports
 
 ### Generate the Report
 
@@ -446,120 +528,110 @@ allure open ./reports/allure-report
 
 ---
 
-## 7. CI/CD Pipeline Integration
+## 8. CI/CD Pipeline Integration
 
-### GitHub Actions — Cross-Browser Matrix
+CI pipeline files are maintained under `.github/workflows/` (GitHub Actions) and `ci/` (Azure Pipelines).
 
-```yaml
-name: Cross-Browser Tests
+### GitHub Actions
 
-on: [push, pull_request]
+| File | Trigger | Scope |
+|------|---------|-------|
+| [.github/workflows/ci.yml](../.github/workflows/ci.yml) | Push / PR to `main`, `develop` | PR → smoke tests; push → full suite |
+| [.github/workflows/nightly.yml](../.github/workflows/nightly.yml) | Schedule 02:00 UTC + manual dispatch | Full suite (manual dispatch can select smoke) |
 
-jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-        browser: [chrome, edge, firefox]
+**Pipeline stages (`ci.yml`):**
 
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore and build
-        run: |
-          dotnet restore
-          dotnet build --no-restore
-
-      - name: Run Tests — ${{ matrix.browser }} on ${{ matrix.os }}
-        env:
-          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-          TestSettings__Browser: ${{ matrix.browser }}
-          TestSettings__Headless: "true"
-        run: dotnet test SeleniumAutomationFramework.sln --no-build
-
-      - name: Generate Allure Report
-        if: always()
-        run: allure generate reports/allure-results -o reports/allure-report --clean
-
-      - name: Upload Allure Report
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: allure-report-${{ matrix.browser }}-${{ matrix.os }}
-          path: reports/allure-report/
+```
+build → api-tests ─────────────────────────────┐
+      → ui-tests (matrix: chrome/firefox/edge) ─┴→ allure-report
 ```
 
-### GitHub Actions — Smoke Tests Only
+**Required secrets** (set in GitHub → Settings → Secrets → Actions):
 
-```yaml
-- name: Run Smoke Tests
-  env:
-    TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-    TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-    TestSettings__Headless: "true"
-  run: dotnet test SeleniumAutomationFramework.sln --no-build --filter "Category=High&Category=Smoke"
+| Secret | Value |
+|--------|-------|
+| `TEST_USER_EMAIL` | Test account email |
+| `TEST_USER_PASSWORD` | Test account password |
+
+**PR vs Push behaviour:**
+- Pull request → `--filter "Category=High&Category=Smoke"` applied to both API and UI jobs
+- Push to `main`/`develop` → full suite on all three browsers (Chrome, Firefox, Edge)
+
+**Manual nightly dispatch** — trigger via GitHub Actions UI → Nightly → Run workflow → choose `full` or `smoke`.
+
+---
+
+### Azure Pipelines
+
+Pipeline file: [ci/azure-pipelines.yml](../ci/azure-pipelines.yml)
+
+Configure the pipeline in Azure DevOps:
+1. **New pipeline** → connect your repo → select **Existing Azure Pipelines YAML file** → path: `ci/azure-pipelines.yml`
+2. Add pipeline variables `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` (mark both as **secret**)
+
+**Pipeline stages:**
+
+```
+Build → Test (parallel: APITests + UITests matrix: chrome/firefox/edge) → Report
 ```
 
-### Azure Pipelines — Cross-Browser Matrix
+Same PR/push filtering logic as GitHub Actions: PRs run smoke tests, branch pushes run full suite.
 
-```yaml
-pool:
-  vmImage: 'windows-latest'
-
-strategy:
-  matrix:
-    Chrome:
-      browser: chrome
-    Edge:
-      browser: edge
-    Firefox:
-      browser: firefox
-
-steps:
-  - task: UseDotNet@2
-    inputs:
-      version: '10.0.x'
-
-  - script: |
-      dotnet restore
-      dotnet build --no-restore
-    displayName: 'Build'
-
-  - script: dotnet test SeleniumAutomationFramework.sln --no-build
-    env:
-      TEST_USER_EMAIL: $(TEST_USER_EMAIL)
-      TEST_USER_PASSWORD: $(TEST_USER_PASSWORD)
-      TestSettings__Browser: $(browser)
-      TestSettings__Headless: "true"
-    displayName: 'Run Tests — $(browser)'
-
-  - script: |
-      allure generate reports/allure-results -o reports/allure-report --clean
-    displayName: 'Generate Allure Report'
-    condition: always()
-```
-
-**macOS agent** — replace `vmImage: 'windows-latest'` with `vmImage: 'macOS-latest'`. All `dotnet test` and `allure` commands are identical.
+---
 
 ### Recommended CI Settings
 
 | Setting | Recommendation |
 |---------|----------------|
-| Headless | Always `true` in CI |
+| Headless | Always `true` in CI — set via `TestSettings__Headless` env var |
 | Credentials | Use platform secrets — never hard-code |
-| Build step | Always run `dotnet build --no-restore` separately before test |
-| Report | Generate Allure report with `--clean` and upload as artifact |
-| Filter | Use `--filter "Category=High&Category=Smoke"` for PR checks; full suite for nightly |
+| Build step | Restore and build before test; use `--no-build` in test step |
+| Report | Allure results are uploaded per job and merged in the report step |
+| PR filter | `Category=High&Category=Smoke` — fast smoke gate on every PR |
+| Browser matrix | Run UI tests across Chrome, Firefox, and Edge |
+| Nightly | Full suite across all supported browsers (manual dispatch can select smoke) |
 
 ---
 
-## 8. Troubleshooting
+## 9. What Is Implemented
+
+This section summarizes what is already implemented for parallel execution and CI/CD.
+
+### Parallel Test Execution (Implemented)
+
+- NUnit parallel execution enabled at assembly level with `LevelOfParallelism(4)`.
+- UI fixtures use `FixtureLifeCycle(LifeCycle.InstancePerTestCase)` + `Parallelizable(ParallelScope.All)` for safe method-level parallelism.
+- API fixtures use `Parallelizable(ParallelScope.Self)` for class-level parallelism.
+- UI and API suites can run in one command (`dotnet test SeleniumAutomationFramework.sln`) with concurrent fixture execution.
+- Sequential debug mode is supported using `-- NUnit.NumberOfTestWorkers=0`.
+- Cross-browser execution is supported by process-level browser selection via `TestSettings__Browser`.
+
+### CI/CD (Implemented)
+
+- GitHub Actions CI pipeline: `.github/workflows/ci.yml`.
+- GitHub Actions nightly pipeline: `.github/workflows/nightly.yml`.
+- Azure Pipelines definition: `ci/azure-pipelines.yml`.
+- Cross-browser matrix execution in CI for Chrome, Firefox, and Edge.
+- PR optimization: smoke-only filter (`Category=High&Category=Smoke`).
+- Push/nightly execution: full suite across Chrome, Firefox, and Edge.
+- Allure results are uploaded per test job and merged into a final report artifact.
+- Manual trigger support exists through `workflow_dispatch`.
+
+### CI Execution Flow (Implemented)
+
+```text
+Build -> API Tests + UI Tests (matrix browsers) -> Allure Report
+```
+
+### Required Configuration For CI
+
+- GitHub repository secrets: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`.
+- Azure pipeline secret variables: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`.
+- Browser runs in CI should set `TestSettings__Headless=true`.
+
+---
+
+## 10. Troubleshooting
 
 ### Tests Use the Wrong Browser
 

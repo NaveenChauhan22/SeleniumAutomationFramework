@@ -138,11 +138,11 @@ public abstract class BaseAPIPage
             }
             catch (Exception ex)
             {
-                Serilog.Log.Logger.Error("Request content could not be sanitized; details redacted for security. Error: {Message}", ex.Message);
+                Logger.Error("Request content could not be sanitized; details redacted for security. Error: {Message}", ex.Message);
                 requestText = "[Request content could not be sanitised.]";
             }
 
-            Serilog.Log.Logger.Information("[API] Request: {Method} {Url}\n{RequestDetails}", method, relativeUrl, requestText);
+            Logger.Information("[API] Request: {Method} {Url}\n{RequestDetails}", method, relativeUrl, requestText);
             ReportHelper.AttachContent($"API Request - {method} {relativeUrl}", "text/plain", requestText, "txt");
 
             HttpResponseMessage response;
@@ -183,11 +183,11 @@ public abstract class BaseAPIPage
             }
             catch (Exception ex)
             {
-                Serilog.Log.Logger.Error("Response content could not be sanitized; details redacted for security. Error: {Message}", ex.Message);
+                Logger.Error("Response content could not be sanitized; details redacted for security. Error: {Message}", ex.Message);
                 responseText = "[Response content could not be sanitised.]";
             }
 
-            Serilog.Log.Logger.Information("[API] Response: {StatusCode}\n{ResponseDetails}", (int)response.StatusCode, responseText);
+            Logger.Information("[API] Response: {StatusCode}\n{ResponseDetails}", (int)response.StatusCode, responseText);
             ReportHelper.AttachContent($"API Response - {method} {relativeUrl}", "text/plain", responseText, "txt");
 
             try
@@ -196,7 +196,7 @@ public abstract class BaseAPIPage
             }
             catch (Exception ex)
             {
-                Serilog.Log.Logger.Warning("Failed to record API exchange: {Message}", ex.Message);
+                Logger.Warning("Failed to record API exchange: {Message}", ex.Message);
                 // Continue even if recording fails
             }
 

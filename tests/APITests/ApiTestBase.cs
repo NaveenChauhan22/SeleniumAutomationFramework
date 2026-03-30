@@ -508,8 +508,7 @@ public abstract class APITestBase : AllureTestBase
         
         Logger = executionLogger.ForContext<APITestBase>();
         Assert.That(Logger, Is.Not.Null, "Logger context creation failed.");
-        
-        Serilog.Log.Logger = executionLogger;
+
         _executionLoggerHandle = executionLogger as IDisposable;
 
         Logger.Debug("[API] Starting test {TestName}", TestContext.CurrentContext.Test.Name);

@@ -38,7 +38,6 @@ public abstract class BaseTest
 
         var executionLogger = TestLogger.CreateExecutionLogger("UI", _suiteName, TestContext.CurrentContext.Test.Name);
         Logger = executionLogger.ForContext<BaseTest>();
-        Serilog.Log.Logger = executionLogger;
         _executionLoggerHandle = executionLogger as IDisposable;
 
         Logger.Information("[UI] Starting test {TestName}", TestContext.CurrentContext.Test.Name);

@@ -6,6 +6,8 @@ using Framework.Reporting;
 
 namespace UITests;
 
+[FixtureLifeCycle(LifeCycle.InstancePerTestCase)]
+[Parallelizable(ParallelScope.All)]
 [AllureNUnit]
 [AllureParentSuite("UITests")]
 [AllureSuite("Login")]
