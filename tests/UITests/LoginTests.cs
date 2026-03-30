@@ -6,6 +6,7 @@ using Framework.Reporting;
 
 namespace UITests;
 
+[Parallelizable(ParallelScope.Self)]
 [AllureNUnit]
 [AllureParentSuite("UITests")]
 [AllureSuite("Login")]

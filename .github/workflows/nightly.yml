@@ -1,0 +1,209 @@
+# Nightly Pipeline
+# Runs the full test suite every night at 02:00 UTC across all browsers.
+# Can also be triggered manually via workflow_dispatch — optionally limit to smoke tests.
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 02:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - smoke
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  BUILD_CONFIGURATION: 'Release'
+
+jobs:
+  # ── 1. Build ─────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
+
+  # ── 2. API Tests ──────────────────────────────────────────────────────────────
+  api-tests:
+    name: API Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore and Build
+        run: |
+          dotnet restore
+          dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
+
+      - name: Run API Tests
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          SUITE: ${{ github.event.inputs.suite || 'full' }}
+        run: |
+          if [ "$SUITE" = "smoke" ]; then
+            dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "Category=High&Category=Smoke"
+          else
+            dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
+          fi
+
+      - name: Upload Allure Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-api
+          path: reports/allure-results/
+          retention-days: 7
+
+  # ── 3. UI Tests (cross-browser matrix, ubuntu + windows for Edge) ─────────────
+  ui-tests:
+    name: UI Tests — ${{ matrix.browser }} (${{ matrix.os }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chrome
+            os: ubuntu-latest
+          - browser: firefox
+            os: ubuntu-latest
+          - browser: edge
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Cache NuGet packages (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: $env:USERPROFILE\.nuget\packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore and Build
+        run: |
+          dotnet restore
+          dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
+
+      - name: Run UI Tests — ${{ matrix.browser }} (Linux)
+        if: runner.os == 'Linux'
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          TestSettings__Browser: ${{ matrix.browser }}
+          TestSettings__Headless: 'true'
+          SUITE: ${{ github.event.inputs.suite || 'full' }}
+        run: |
+          if [ "$SUITE" = "smoke" ]; then
+            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "Category=High&Category=Smoke"
+          else
+            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
+          fi
+
+      - name: Run UI Tests — ${{ matrix.browser }} (Windows)
+        if: runner.os == 'Windows'
+        env:
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          TestSettings__Browser: ${{ matrix.browser }}
+          TestSettings__Headless: 'true'
+        shell: pwsh
+        run: |
+          $suite = "${{ github.event.inputs.suite }}"
+          if (-not $suite) { $suite = "full" }
+          if ($suite -eq "smoke") {
+            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "Category=High&Category=Smoke"
+          } else {
+            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
+          }
+
+      - name: Upload Allure Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-ui-${{ matrix.browser }}
+          path: reports/allure-results/
+          retention-days: 7
+
+  # ── 4. Allure Report (combined across all jobs) ───────────────────────────────
+  allure-report:
+    name: Allure Report
+    needs: [api-tests, ui-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all Allure results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-*
+          path: reports/allure-results/
+          merge-multiple: true
+
+      - name: Install Allure CLI
+        run: |
+          wget -q -O allure.tgz https://github.com/allure-framework/allure2/releases/download/2.27.0/allure-2.27.0.tgz
+          sudo tar -xzf allure.tgz -C /opt/
+          sudo ln -sf /opt/allure-2.27.0/bin/allure /usr/local/bin/allure
+
+      - name: Generate Allure Report
+        run: allure generate reports/allure-results/ -o reports/allure-report/ --clean
+
+      - name: Upload Allure Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report-nightly
+          path: reports/allure-report/
+          retention-days: 30

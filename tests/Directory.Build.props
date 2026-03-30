@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <!-- Shared assembly-level NUnit settings applied to every test project under tests/ -->
+    <Compile Include="$(MSBuildThisFileDirectory)AssemblyInfo.cs" />
+  </ItemGroup>
+</Project>

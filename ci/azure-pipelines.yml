@@ -1,0 +1,194 @@
+# Azure Pipelines — CI Pipeline
+# Runs on push to main/develop and on pull requests targeting those branches.
+# Pull requests execute smoke tests only (Category=High&Category=Smoke) for fast feedback.
+# Push to main/develop executes the full test suite across all browsers.
+#
+# Required pipeline variables (set in Azure DevOps → Library or Pipeline Variables):
+#   TEST_USER_EMAIL    — test account email (mark as secret)
+#   TEST_USER_PASSWORD — test account password (mark as secret)
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  DOTNET_VERSION: '10.0.x'
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  buildConfiguration: 'Release'
+
+stages:
+
+  # ── Stage 1: Build ────────────────────────────────────────────────────────────
+  - stage: Build
+    displayName: Build
+    jobs:
+      - job: Build
+        displayName: Restore and Build
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UseDotNet@2
+            displayName: Install .NET ${{ variables.DOTNET_VERSION }}
+            inputs:
+              version: $(DOTNET_VERSION)
+
+          - task: Cache@2
+            displayName: Cache NuGet packages
+            inputs:
+              key: 'nuget | "$(Agent.OS)" | **/packages.lock.json'
+              restoreKeys: 'nuget | "$(Agent.OS)"'
+              path: $(NUGET_PACKAGES)
+            continueOnError: true
+
+          - script: dotnet restore
+            displayName: Restore
+
+          - script: dotnet build --no-restore --configuration $(buildConfiguration)
+            displayName: Build
+
+  # ── Stage 2: Test ─────────────────────────────────────────────────────────────
+  - stage: Test
+    displayName: Test
+    dependsOn: Build
+    jobs:
+
+      # API Tests
+      - job: APITests
+        displayName: API Tests
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UseDotNet@2
+            displayName: Install .NET
+            inputs:
+              version: $(DOTNET_VERSION)
+
+          - script: |
+              dotnet restore
+              dotnet build --no-restore --configuration $(buildConfiguration)
+            displayName: Restore and Build
+
+          - script: |
+              if [ "$(Build.Reason)" = "PullRequest" ]; then
+                dotnet test tests/APITests/APITests.csproj --no-build --configuration $(buildConfiguration) --filter "Category=High&Category=Smoke"
+              else
+                dotnet test tests/APITests/APITests.csproj --no-build --configuration $(buildConfiguration)
+              fi
+            displayName: Run API Tests
+            env:
+              TEST_USER_EMAIL: $(TEST_USER_EMAIL)
+              TEST_USER_PASSWORD: $(TEST_USER_PASSWORD)
+
+          - task: PublishPipelineArtifact@1
+            displayName: Upload Allure Results
+            condition: always()
+            inputs:
+              targetPath: reports/allure-results
+              artifact: allure-results-api
+
+      # UI Tests — cross-browser matrix
+      - job: UITests
+        displayName: UI Tests — $(browser)
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          matrix:
+            Chrome:
+              browser: chrome
+            Firefox:
+              browser: firefox
+            Edge:
+              browser: edge
+        steps:
+          - task: UseDotNet@2
+            displayName: Install .NET
+            inputs:
+              version: $(DOTNET_VERSION)
+
+          - script: |
+              dotnet restore
+              dotnet build --no-restore --configuration $(buildConfiguration)
+            displayName: Restore and Build
+
+          - script: |
+              if [ "$(Build.Reason)" = "PullRequest" ]; then
+                dotnet test tests/UITests/UITests.csproj --no-build --configuration $(buildConfiguration) --filter "Category=High&Category=Smoke"
+              else
+                dotnet test tests/UITests/UITests.csproj --no-build --configuration $(buildConfiguration)
+              fi
+            displayName: Run UI Tests — $(browser)
+            env:
+              TEST_USER_EMAIL: $(TEST_USER_EMAIL)
+              TEST_USER_PASSWORD: $(TEST_USER_PASSWORD)
+              TestSettings__Browser: $(browser)
+              TestSettings__Headless: 'true'
+
+          - task: PublishPipelineArtifact@1
+            displayName: Upload Allure Results
+            condition: always()
+            inputs:
+              targetPath: reports/allure-results
+              artifact: allure-results-ui-$(browser)
+
+  # ── Stage 3: Allure Report ────────────────────────────────────────────────────
+  - stage: Report
+    displayName: Allure Report
+    dependsOn: Test
+    condition: always()
+    jobs:
+      - job: GenerateReport
+        displayName: Generate and Publish Allure Report
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: Download API Allure Results
+            continueOnError: true
+            inputs:
+              artifact: allure-results-api
+              path: $(System.DefaultWorkingDirectory)/reports/allure-results
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download Chrome Allure Results
+            continueOnError: true
+            inputs:
+              artifact: allure-results-ui-Chrome
+              path: $(System.DefaultWorkingDirectory)/reports/allure-results
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download Firefox Allure Results
+            continueOnError: true
+            inputs:
+              artifact: allure-results-ui-Firefox
+              path: $(System.DefaultWorkingDirectory)/reports/allure-results
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download Edge Allure Results
+            continueOnError: true
+            inputs:
+              artifact: allure-results-ui-Edge
+              path: $(System.DefaultWorkingDirectory)/reports/allure-results
+
+          - script: |
+              wget -q -O allure.tgz https://github.com/allure-framework/allure2/releases/download/2.27.0/allure-2.27.0.tgz
+              sudo tar -xzf allure.tgz -C /opt/
+              sudo ln -sf /opt/allure-2.27.0/bin/allure /usr/local/bin/allure
+            displayName: Install Allure CLI
+
+          - script: allure generate reports/allure-results -o reports/allure-report --clean
+            displayName: Generate Allure Report
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish Allure Report
+            inputs:
+              targetPath: reports/allure-report
+              artifact: allure-report

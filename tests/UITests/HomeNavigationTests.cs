@@ -5,6 +5,7 @@ using UITests.Pages;
 
 namespace UITests;
 
+[Parallelizable(ParallelScope.Self)]
 [AllureNUnit]
 [AllureParentSuite("UITests")]
 [AllureSuite("Home Navigation")]

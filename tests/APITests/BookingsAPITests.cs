@@ -7,6 +7,7 @@ using Newtonsoft.Json.Linq;
 
 namespace APITests;
 
+[Parallelizable(ParallelScope.Self)]
 [AllureNUnit]
 [AllureParentSuite("APITests")]
 [AllureSuite("Bookings API")]
