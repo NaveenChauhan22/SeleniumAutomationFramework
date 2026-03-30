@@ -3,6 +3,7 @@ using Allure.Net.Commons;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using NUnit.Framework;
 
 namespace Framework.Reporting;
 
@@ -21,7 +22,7 @@ public static class ReportHelper
     private static readonly object ReportLock = new();
     private static readonly string RunTimestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
     private static readonly DateTimeOffset RunStartedAt = DateTimeOffset.Now;
-    private static readonly AsyncLocal<string?> CurrentTestName = new();
+    private static readonly AsyncLocal<string?> CurrentTestKey = new();
     private static readonly Lazy<bool> ExecutionHistoryEnabled = new(ResolveExecutionHistoryEnabled);
 
     public static void AttachFile(string name, string filePath, string contentType)
@@ -56,16 +57,16 @@ public static class ReportHelper
 
         lock (ReportLock)
         {
-            var testName = CurrentTestName.Value;
-            if (string.IsNullOrWhiteSpace(testName))
+            var testKey = CurrentTestKey.Value;
+            if (string.IsNullOrWhiteSpace(testKey))
             {
                 return;
             }
 
-            if (!TestSteps.TryGetValue(testName, out var steps))
+            if (!TestSteps.TryGetValue(testKey, out var steps))
             {
                 steps = [];
-                TestSteps[testName] = steps;
+                TestSteps[testKey] = steps;
             }
 
             steps.Add($"{DateTime.Now:HH:mm:ss} - {stepMessage}");
@@ -79,12 +80,14 @@ public static class ReportHelper
             return;
         }
 
+        var testKey = GetCurrentTestKeyOrFallback(testName);
+
         lock (ReportLock)
         {
-            TestSteps[testName] = [];
+            TestSteps[testKey] = [];
         }
 
-        CurrentTestName.Value = testName;
+        CurrentTestKey.Value = testKey;
     }
 
     public static string GetReportsDirectory()
@@ -130,11 +133,15 @@ public static class ReportHelper
         string? errorMessage = null,
         string? screenshotPath = null)
     {
+        var testKey = GetCurrentTestKeyOrFallback(testName);
+
         lock (ReportLock)
         {
-            var stepLogs = TestSteps.TryGetValue(testName, out var steps)
+            var stepLogs = TestSteps.TryGetValue(testKey, out var steps)
                 ? steps.ToList()
                 : new List<string>();
+
+            TestSteps.Remove(testKey);
 
             TestExecutionRecords.Add(new TestExecutionRecord(
                 startedAt,
@@ -151,6 +158,19 @@ public static class ReportHelper
                 errorMessage,
                 screenshotPath));
         }
+
+        CurrentTestKey.Value = null;
+    }
+
+    private static string GetCurrentTestKeyOrFallback(string fallbackName)
+    {
+        var currentId = TestContext.CurrentContext?.Test?.ID;
+        if (!string.IsNullOrWhiteSpace(currentId))
+        {
+            return currentId!;
+        }
+
+        return fallbackName;
     }
 
     public static string GenerateHtmlReport()

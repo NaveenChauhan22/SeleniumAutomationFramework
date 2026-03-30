@@ -45,7 +45,7 @@ dotnet test ./SeleniumAutomationFramework.sln
 
 ### 2.1 Parallel Run (Default)
 
-All test fixtures are annotated with `[Parallelizable(ParallelScope.Self)]` and the test assemblies receive `[assembly: LevelOfParallelism(4)]` from `tests/AssemblyInfo.cs` (included by `tests/Directory.Build.props`). NUnit distributes fixture classes across up to 4 worker threads automatically — no runsettings file required.
+UI fixtures are annotated with `[FixtureLifeCycle(LifeCycle.InstancePerTestCase)]` + `[Parallelizable(ParallelScope.All)]`, API fixtures use `[Parallelizable(ParallelScope.Self)]`, and the test assemblies receive `[assembly: LevelOfParallelism(4)]` from `tests/AssemblyInfo.cs` (included by `tests/Directory.Build.props`). NUnit distributes eligible tests across up to 4 worker threads automatically — no runsettings file required.
 
 **Windows (PowerShell):**
 ```powershell
@@ -58,7 +58,7 @@ dotnet test ./SeleniumAutomationFramework.sln
 ```
 
 What runs in parallel:
-- `LoginTests` ↔ `HomeNavigationTests` (UI, same browser)
+- UI test methods inside `LoginTests` and `HomeNavigationTests` (same browser process)
 - `AuthAPITests` ↔ `BookingsAPITests` ↔ `EventsAPITests` (API)
 
 ### 2.2 Sequential Run (Debug / Isolation)
@@ -599,7 +599,8 @@ This section summarizes what is already implemented for parallel execution and C
 ### Parallel Test Execution (Implemented)
 
 - NUnit parallel execution enabled at assembly level with `LevelOfParallelism(4)`.
-- Test fixtures use `Parallelizable(ParallelScope.Self)` to run fixture classes in parallel while keeping tests inside each fixture sequential.
+- UI fixtures use `FixtureLifeCycle(LifeCycle.InstancePerTestCase)` + `Parallelizable(ParallelScope.All)` for safe method-level parallelism.
+- API fixtures use `Parallelizable(ParallelScope.Self)` for class-level parallelism.
 - UI and API suites can run in one command (`dotnet test SeleniumAutomationFramework.sln`) with concurrent fixture execution.
 - Sequential debug mode is supported using `-- NUnit.NumberOfTestWorkers=0`.
 - Cross-browser execution is supported by process-level browser selection via `TestSettings__Browser`.

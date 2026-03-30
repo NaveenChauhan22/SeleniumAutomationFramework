@@ -5,7 +5,8 @@ using UITests.Pages;
 
 namespace UITests;
 
-[Parallelizable(ParallelScope.Self)]
+[FixtureLifeCycle(LifeCycle.InstancePerTestCase)]
+[Parallelizable(ParallelScope.All)]
 [AllureNUnit]
 [AllureParentSuite("UITests")]
 [AllureSuite("Home Navigation")]
