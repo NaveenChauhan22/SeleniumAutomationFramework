@@ -1,10 +1,7 @@
 # CI Pipeline
 # Runs on every push to main/develop and on every pull request targeting those branches.
 # Pull requests execute smoke tests only (Category=High&Category=Smoke) for fast feedback.
-# Push to main/develop executes the full test suite with tiered browser filters:
-#   Chrome  — all tests
-#   Firefox — Category=High (High priority tests)
-#   Edge    — Category=High&Category=Smoke (Smoke tests only)
+# Push to main/develop executes the full test suite on all supported browsers.
 
 name: CI
 
@@ -132,16 +129,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Tiered browser strategy: each browser runs a subset matched to its priority level.
-        # Chrome runs the full suite; Firefox runs High-priority tests; Edge runs Smoke only.
-        # When suite=smoke every browser falls back to the same smoke subset.
-        include:
-          - browser: chrome
-            browser_filter: ''                             # all tests
-          - browser: firefox
-            browser_filter: 'Category=High'                # High priority only
-          - browser: edge
-            browser_filter: 'Category=High&Category=Smoke' # Smoke tests only
+        browser: [chrome, firefox, edge]
     steps:
       - uses: actions/checkout@v4
 
@@ -173,7 +161,6 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           MANUAL_SUITE: ${{ github.event.inputs.suite }}
-          BROWSER_FILTER: ${{ matrix.browser_filter }}
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
           if [ -z "$TEST_USER_EMAIL" ] || [ -z "$TEST_USER_PASSWORD" ]; then
@@ -191,11 +178,9 @@ jobs:
             SUITE="smoke"
           fi
 
-          # Tiered browser strategy: smoke overrides to smoke filter; full uses per-browser tier.
+          # Smoke runs use smoke filter; full runs execute all UI tests.
           if [ "$SUITE" = "smoke" ]; then
             FILTER="Category=High&Category=Smoke"
-          elif [ -n "$BROWSER_FILTER" ]; then
-            FILTER="$BROWSER_FILTER"
           else
             FILTER=""
           fi

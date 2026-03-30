@@ -1,7 +1,6 @@
 # Nightly Pipeline
-# Runs the full test suite every night at 02:00 UTC with tiered browser filters.
+# Runs the full test suite every night at 02:00 UTC across all supported browsers.
 # Can also be triggered manually via workflow_dispatch — optionally limit to smoke tests.
-# Browser tiers (full suite): Chrome=all tests, Firefox=High priority, Edge=Smoke only.
 
 name: Nightly
 
@@ -110,19 +109,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Tiered browser strategy: each browser runs a subset matched to its priority level.
-        # Chrome runs the full suite; Firefox runs High-priority tests; Edge runs Smoke only.
-        # When suite=smoke every browser falls back to the same smoke subset.
         include:
           - browser: chrome
             os: ubuntu-latest
-            browser_filter: ''                             # all tests
           - browser: firefox
             os: ubuntu-latest
-            browser_filter: 'Category=High'                # High priority only
           - browser: edge
             os: windows-latest
-            browser_filter: 'Category=High&Category=Smoke' # Smoke tests only
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -167,14 +160,11 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           SUITE: ${{ github.event.inputs.suite || 'full' }}
-          BROWSER_FILTER: ${{ matrix.browser_filter }}
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
-          # Tiered browser strategy: smoke overrides to smoke filter; full uses per-browser tier.
+          # Smoke runs use smoke filter; full runs execute all UI tests.
           if [ "$SUITE" = "smoke" ]; then
             FILTER="Category=High&Category=Smoke"
-          elif [ -n "$BROWSER_FILTER" ]; then
-            FILTER="$BROWSER_FILTER"
           else
             FILTER=""
           fi
@@ -196,18 +186,14 @@ jobs:
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
-          BROWSER_FILTER: ${{ matrix.browser_filter }}
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}\.ci\allure-results-ui-${{ matrix.browser }}
         shell: pwsh
         run: |
           $suite = "${{ github.event.inputs.suite }}"
           if (-not $suite) { $suite = "full" }
-          $browserFilter = $env:BROWSER_FILTER
-          # Tiered browser strategy: smoke overrides to smoke filter; full uses per-browser tier.
+          # Smoke runs use smoke filter; full runs execute all UI tests.
           if ($suite -eq "smoke") {
             $filter = "Category=High&Category=Smoke"
-          } elseif ($browserFilter) {
-            $filter = $browserFilter
           } else {
             $filter = ""
           }

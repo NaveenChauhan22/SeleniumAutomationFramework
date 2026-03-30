@@ -290,22 +290,6 @@ dotnet test ./tests/UITests/UITests.csproj
 unset TestSettings__Browser
 ```
 
-### CI Tiered Cross-Browser Strategy
-
-Running every test on every browser triples CI execution time without proportional coverage gain. The pipeline applies a tiered strategy where browser scope is matched to test priority:
-
-| Browser | CI Filter | What Runs |
-|---------|-----------|------------|
-| **Chrome** | none (full suite) | All tests — primary regression browser |
-| **Firefox** | `Category=High` | High priority tests — validates key flows cross-browser |
-| **Edge** | `Category=High&Category=Smoke` | Smoke tests only — fast sanity check |
-
-This gives full regression coverage on Chrome, meaningful cross-browser validation on Firefox, and a fast sanity signal on Edge — without tripling CI minutes.
-
-> **Local runs are unaffected.** When running locally, all browsers execute the full suite by default. The tiered filter is CI-only, applied via `BROWSER_FILTER` per matrix entry in the workflow.
->
-> **Smoke runs override the tier.** When `suite=smoke` is selected (PR or manual dispatch), every browser falls back to `Category=High&Category=Smoke` regardless of its tier.
-
 ---
 
 ## 5. Headless Mode
@@ -571,17 +555,7 @@ build → api-tests ────────────────────
 
 **PR vs Push behaviour:**
 - Pull request → `--filter "Category=High&Category=Smoke"` applied to both API and UI jobs
-- Push to `main`/`develop` → full suite with tiered browser filters applied
-
-**Tiered browser filter (full suite runs):**
-
-| Browser | Filter Applied | Tests Run |
-|---------|----------------|-----------|
-| Chrome | none | All tests |
-| Firefox | `Category=High` | High priority tests |
-| Edge | `Category=High&Category=Smoke` | Smoke tests only |
-
-> This reduces Firefox/Edge execution time while Chrome provides complete regression coverage.
+- Push to `main`/`develop` → full suite on all three browsers (Chrome, Firefox, Edge)
 
 **Manual nightly dispatch** — trigger via GitHub Actions UI → Nightly → Run workflow → choose `full` or `smoke`.
 
@@ -614,8 +588,8 @@ Same PR/push filtering logic as GitHub Actions: PRs run smoke tests, branch push
 | Build step | Restore and build before test; use `--no-build` in test step |
 | Report | Allure results are uploaded per job and merged in the report step |
 | PR filter | `Category=High&Category=Smoke` — fast smoke gate on every PR |
-| Browser tier | Chrome runs all tests; Firefox runs `Category=High`; Edge runs `Category=High&Category=Smoke` |
-| Nightly | Full suite with tiered browser filters for optimised cross-browser coverage |
+| Browser matrix | Run UI tests across Chrome, Firefox, and Edge |
+| Nightly | Full suite across all supported browsers (manual dispatch can select smoke) |
 
 ---
 
@@ -637,9 +611,9 @@ This section summarizes what is already implemented for parallel execution and C
 - GitHub Actions CI pipeline: `.github/workflows/ci.yml`.
 - GitHub Actions nightly pipeline: `.github/workflows/nightly.yml`.
 - Azure Pipelines definition: `ci/azure-pipelines.yml`.
-- Cross-browser matrix execution in CI for Chrome, Firefox, and Edge with tiered browser filters.
+- Cross-browser matrix execution in CI for Chrome, Firefox, and Edge.
 - PR optimization: smoke-only filter (`Category=High&Category=Smoke`).
-- Push/nightly execution: full suite with tiered browser strategy (Chrome=all, Firefox=High priority, Edge=Smoke only).
+- Push/nightly execution: full suite across Chrome, Firefox, and Edge.
 - Allure results are uploaded per test job and merged into a final report artifact.
 - Manual trigger support exists through `workflow_dispatch`.
 
