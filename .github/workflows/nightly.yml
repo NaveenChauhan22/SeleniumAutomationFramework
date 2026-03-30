@@ -73,11 +73,17 @@ jobs:
           dotnet restore
           dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
 
+      - name: Prepare Allure Results Directory
+        run: |
+          rm -rf .ci/allure-results-api
+          mkdir -p .ci/allure-results-api
+
       - name: Run API Tests
         env:
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           SUITE: ${{ github.event.inputs.suite || 'full' }}
+          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
           if [ "$SUITE" = "smoke" ]; then
             dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "Category=High&Category=Smoke"
@@ -85,12 +91,15 @@ jobs:
             dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           fi
 
+          echo "API Allure result files:"
+          find .ci/allure-results-api -type f | wc -l
+
       - name: Upload Allure Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-api
-          path: reports/allure-results/
+          path: .ci/allure-results-api/
           retention-days: 7
 
   # ── 3. UI Tests (cross-browser matrix, ubuntu + windows for Edge) ─────────────
@@ -136,6 +145,13 @@ jobs:
           dotnet restore
           dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
 
+      - name: Prepare Allure Results Directory
+        shell: pwsh
+        run: |
+          $path = ".ci/allure-results-ui-${{ matrix.browser }}"
+          if (Test-Path $path) { Remove-Item $path -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $path | Out-Null
+
       - name: Run UI Tests — ${{ matrix.browser }} (Linux)
         if: runner.os == 'Linux'
         env:
@@ -144,12 +160,16 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           SUITE: ${{ github.event.inputs.suite || 'full' }}
+          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
           if [ "$SUITE" = "smoke" ]; then
             dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "Category=High&Category=Smoke"
           else
             dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           fi
+
+          echo "UI (${{ matrix.browser }}) Allure result files:"
+          find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l
 
       - name: Run UI Tests — ${{ matrix.browser }} (Windows)
         if: runner.os == 'Windows'
@@ -158,6 +178,7 @@ jobs:
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
+          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}\.ci\allure-results-ui-${{ matrix.browser }}
         shell: pwsh
         run: |
           $suite = "${{ github.event.inputs.suite }}"
@@ -168,12 +189,15 @@ jobs:
             dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           }
 
+          Write-Host "UI (${{ matrix.browser }}) Allure result files:"
+          (Get-ChildItem ".ci/allure-results-ui-${{ matrix.browser }}" -Recurse -File | Measure-Object).Count
+
       - name: Upload Allure Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-ui-${{ matrix.browser }}
-          path: reports/allure-results/
+          path: .ci/allure-results-ui-${{ matrix.browser }}/
           retention-days: 7
 
   # ── 4. Allure Report (combined across all jobs) ───────────────────────────────
@@ -185,11 +209,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare merged output directories
+        run: |
+          rm -rf .ci/allure-results-merged .ci/allure-report
+          mkdir -p .ci/allure-results-merged .ci/allure-report
+
       - name: Download all Allure results
         uses: actions/download-artifact@v4
         with:
           pattern: allure-results-*
-          path: reports/allure-results/
+          path: .ci/allure-results-merged/
           merge-multiple: true
 
       - name: Install Allure CLI
@@ -199,11 +228,21 @@ jobs:
           sudo ln -sf /opt/allure-2.27.0/bin/allure /usr/local/bin/allure
 
       - name: Generate Allure Report
-        run: allure generate reports/allure-results/ -o reports/allure-report/ --clean
+        run: |
+          echo "Merged Allure result files:"
+          find .ci/allure-results-merged -type f | wc -l
+          allure generate .ci/allure-results-merged/ -o .ci/allure-report/ --clean
+
+      - name: Upload Merged Allure Raw Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-merged-nightly
+          path: .ci/allure-results-merged/
+          retention-days: 30
 
       - name: Upload Allure Report
         uses: actions/upload-artifact@v4
         with:
           name: allure-report-nightly
-          path: reports/allure-report/
+          path: .ci/allure-report/
           retention-days: 30

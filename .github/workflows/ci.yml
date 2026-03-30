@@ -76,11 +76,17 @@ jobs:
           dotnet restore
           dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
 
+      - name: Prepare Allure Results Directory
+        run: |
+          rm -rf .ci/allure-results-api
+          mkdir -p .ci/allure-results-api
+
       - name: Run API Tests
         env:
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           MANUAL_SUITE: ${{ github.event.inputs.suite }}
+          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
           if [ -z "$TEST_USER_EMAIL" ] || [ -z "$TEST_USER_PASSWORD" ]; then
             echo "::error::Missing required secrets TEST_USER_EMAIL and/or TEST_USER_PASSWORD. Configure them in repository secrets."
@@ -104,12 +110,15 @@ jobs:
             dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           fi
 
+          echo "API Allure result files:"
+          find .ci/allure-results-api -type f | wc -l
+
       - name: Upload Allure Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-api
-          path: reports/allure-results/
+          path: .ci/allure-results-api/
           retention-days: 7
 
   # ── 3. UI Tests (cross-browser matrix) ───────────────────────────────────────
@@ -140,6 +149,11 @@ jobs:
           dotnet restore
           dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
 
+      - name: Prepare Allure Results Directory
+        run: |
+          rm -rf .ci/allure-results-ui-${{ matrix.browser }}
+          mkdir -p .ci/allure-results-ui-${{ matrix.browser }}
+
       - name: Run UI Tests — ${{ matrix.browser }}
         env:
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
@@ -147,6 +161,7 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           MANUAL_SUITE: ${{ github.event.inputs.suite }}
+          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
           if [ -z "$TEST_USER_EMAIL" ] || [ -z "$TEST_USER_PASSWORD" ]; then
             echo "::error::Missing required secrets TEST_USER_EMAIL and/or TEST_USER_PASSWORD. Configure them in repository secrets."
@@ -170,12 +185,15 @@ jobs:
             dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           fi
 
+          echo "UI (${{ matrix.browser }}) Allure result files:"
+          find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l
+
       - name: Upload Allure Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-ui-${{ matrix.browser }}
-          path: reports/allure-results/
+          path: .ci/allure-results-ui-${{ matrix.browser }}/
           retention-days: 7
 
   # ── 4. Allure Report (combined across all jobs) ───────────────────────────────
@@ -188,10 +206,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download all Allure results
+        run: |
+          rm -rf .ci/allure-results-merged .ci/allure-report
+          mkdir -p .ci/allure-results-merged .ci/allure-report
+
+      - name: Download all Allure results
         uses: actions/download-artifact@v4
         with:
           pattern: allure-results-*
-          path: reports/allure-results/
+          path: .ci/allure-results-merged/
           merge-multiple: true
 
       - name: Install Allure CLI
@@ -201,11 +224,21 @@ jobs:
           sudo ln -sf /opt/allure-2.27.0/bin/allure /usr/local/bin/allure
 
       - name: Generate Allure Report
-        run: allure generate reports/allure-results/ -o reports/allure-report/ --clean
+        run: |
+          echo "Merged Allure result files:"
+          find .ci/allure-results-merged -type f | wc -l
+          allure generate .ci/allure-results-merged/ -o .ci/allure-report/ --clean
+
+      - name: Upload Merged Allure Raw Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-merged
+          path: .ci/allure-results-merged/
+          retention-days: 30
 
       - name: Upload Allure Report
         uses: actions/upload-artifact@v4
         with:
           name: allure-report
-          path: reports/allure-report/
+          path: .ci/allure-report/
           retention-days: 30
