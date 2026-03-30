@@ -80,8 +80,24 @@ jobs:
         env:
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-          SUITE: ${{ github.event.inputs.suite || (github.event_name == 'pull_request' && 'smoke') || 'full' }}
+          MANUAL_SUITE: ${{ github.event.inputs.suite }}
         run: |
+          if [ -z "$TEST_USER_EMAIL" ] || [ -z "$TEST_USER_PASSWORD" ]; then
+            echo "::error::Missing required secrets TEST_USER_EMAIL and/or TEST_USER_PASSWORD. Configure them in repository secrets."
+            exit 1
+          fi
+
+          if [ -n "$MANUAL_SUITE" ]; then
+            SUITE="$MANUAL_SUITE"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            SUITE="smoke"
+          elif [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.ref_name }}" = "develop" ]; then
+            SUITE="full"
+          else
+            SUITE="smoke"
+          fi
+
+          echo "Running API suite: $SUITE"
           if [ "$SUITE" = "smoke" ]; then
             dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "Category=High&Category=Smoke"
           else
@@ -130,8 +146,24 @@ jobs:
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
-          SUITE: ${{ github.event.inputs.suite || (github.event_name == 'pull_request' && 'smoke') || 'full' }}
+          MANUAL_SUITE: ${{ github.event.inputs.suite }}
         run: |
+          if [ -z "$TEST_USER_EMAIL" ] || [ -z "$TEST_USER_PASSWORD" ]; then
+            echo "::error::Missing required secrets TEST_USER_EMAIL and/or TEST_USER_PASSWORD. Configure them in repository secrets."
+            exit 1
+          fi
+
+          if [ -n "$MANUAL_SUITE" ]; then
+            SUITE="$MANUAL_SUITE"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            SUITE="smoke"
+          elif [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.ref_name }}" = "develop" ]; then
+            SUITE="full"
+          else
+            SUITE="smoke"
+          fi
+
+          echo "Running UI suite: $SUITE on browser ${{ matrix.browser }}"
           if [ "$SUITE" = "smoke" ]; then
             dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "Category=High&Category=Smoke"
           else
