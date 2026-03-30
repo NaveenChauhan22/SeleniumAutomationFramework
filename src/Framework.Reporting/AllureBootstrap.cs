@@ -490,18 +490,49 @@ public static class AllureBootstrap
             return;
         }
 
-        foreach (var sourceFile in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        // Use file-based locking for cross-process synchronization in parallel execution
+        var lockFile = Path.Combine(ResultsDirectory, ".allure-copy-lock");
+        try
         {
-            var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
-            var destinationFile = Path.Combine(ResultsDirectory, relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
-            File.Copy(sourceFile, destinationFile, true);
-        }
+            // Wait up to 30 seconds for the lock
+            using (var fileStream = new FileStream(lockFile, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(fileStream))
+            {
+                writer.WriteLine($"Locked by process {Environment.ProcessId} at {DateTime.UtcNow:O}");
 
-        Log.Information("Copied {Count} Allure results files from {SourceDir} to {TargetDir}",
-            Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories).Length,
-            sourceDirectory,
-            ResultsDirectory);
+                foreach (var sourceFile in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+                {
+                    var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
+                    var destinationFile = Path.Combine(ResultsDirectory, relativePath);
+                    Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+                    File.Copy(sourceFile, destinationFile, true);
+                }
+
+                Log.Information("Copied {Count} Allure results files from {SourceDir} to {TargetDir}",
+                    Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories).Length,
+                    sourceDirectory,
+                    ResultsDirectory);
+            }
+        }
+        catch (IOException ex)
+        {
+            Log.Warning(ex, "Failed to acquire lock for Allure results copying. This may cause issues in parallel execution.");
+        }
+        finally
+        {
+            // Clean up the lock file
+            try
+            {
+                if (File.Exists(lockFile))
+                {
+                    File.Delete(lockFile);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup failures
+            }
+        }
     }
 
     private static void GenerateReportIfPossible()

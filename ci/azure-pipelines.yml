@@ -178,6 +178,13 @@ stages:
               artifact: allure-results-ui-Edge
               path: $(System.DefaultWorkingDirectory)/reports/allure-results
 
+          - task: DownloadPipelineArtifact@2
+            displayName: Download Previous Allure History
+            continueOnError: true
+            inputs:
+              artifact: allure-history
+              path: $(System.DefaultWorkingDirectory)/reports/allure-results/history
+
           - script: |
               wget -q -O allure.tgz https://github.com/allure-framework/allure2/releases/download/2.27.0/allure-2.27.0.tgz
               sudo tar -xzf allure.tgz -C /opt/
@@ -192,3 +199,9 @@ stages:
             inputs:
               targetPath: reports/allure-report
               artifact: allure-report
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish Allure History for Next Build
+            inputs:
+              targetPath: reports/allure-report/history
+              artifact: allure-history
