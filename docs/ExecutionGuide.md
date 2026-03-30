@@ -1,6 +1,6 @@
 # Execution Guide
 
-This guide covers how to run tests, target specific browsers, execute cross-browser parallel and API+UI parallel flows, filter by category, generate Allure reports, and integrate with CI/CD pipelines.
+This guide covers local execution modes, NUnit-based parallel execution, cross-browser strategy, CI/CD setup and execution, Allure reporting, and what is implemented in this framework.
 
 ---
 
@@ -14,7 +14,8 @@ This guide covers how to run tests, target specific browsers, execute cross-brow
 6. [NUnit Test Filtering](#6-nunit-test-filtering)
 7. [Allure Reports](#7-allure-reports)
 8. [CI/CD Pipeline Integration](#8-cicd-pipeline-integration)
-9. [Troubleshooting](#9-troubleshooting)
+9. [What Is Implemented](#9-what-is-implemented)
+10. [Troubleshooting](#10-troubleshooting)
 
 ---
 
@@ -44,7 +45,7 @@ dotnet test ./SeleniumAutomationFramework.sln
 
 ### 2.1 Parallel Run (Default)
 
-All test fixtures are annotated with `[Parallelizable(ParallelScope.Self)]` and both projects declare `[assembly: LevelOfParallelism(4)]` in `AssemblyInfo.cs`. NUnit distributes test fixtures across up to 4 worker threads automatically — no runsettings file or script required.
+All test fixtures are annotated with `[Parallelizable(ParallelScope.Self)]` and the test assemblies receive `[assembly: LevelOfParallelism(4)]` from `tests/AssemblyInfo.cs` (included by `tests/Directory.Build.props`). NUnit distributes fixture classes across up to 4 worker threads automatically — no runsettings file required.
 
 **Windows (PowerShell):**
 ```powershell
@@ -591,7 +592,44 @@ Same PR/push filtering logic as GitHub Actions: PRs run smoke tests, branch push
 
 ---
 
-## 8. Troubleshooting
+## 9. What Is Implemented
+
+This section summarizes what is already implemented for parallel execution and CI/CD.
+
+### Parallel Test Execution (Implemented)
+
+- NUnit parallel execution enabled at assembly level with `LevelOfParallelism(4)`.
+- Test fixtures use `Parallelizable(ParallelScope.Self)` to run fixture classes in parallel while keeping tests inside each fixture sequential.
+- UI and API suites can run in one command (`dotnet test SeleniumAutomationFramework.sln`) with concurrent fixture execution.
+- Sequential debug mode is supported using `-- NUnit.NumberOfTestWorkers=0`.
+- Cross-browser execution is supported by process-level browser selection via `TestSettings__Browser`.
+
+### CI/CD (Implemented)
+
+- GitHub Actions CI pipeline: `.github/workflows/ci.yml`.
+- GitHub Actions nightly pipeline: `.github/workflows/nightly.yml`.
+- Azure Pipelines definition: `ci/azure-pipelines.yml`.
+- Cross-browser matrix execution in CI for Chrome, Firefox, and Edge.
+- PR optimization: smoke-only filter (`Category=High&Category=Smoke`).
+- Push/nightly execution: full test suite.
+- Allure results are uploaded per test job and merged into a final report artifact.
+- Manual trigger support exists through `workflow_dispatch`.
+
+### CI Execution Flow (Implemented)
+
+```text
+Build -> API Tests + UI Tests (matrix browsers) -> Allure Report
+```
+
+### Required Configuration For CI
+
+- GitHub repository secrets: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`.
+- Azure pipeline secret variables: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`.
+- Browser runs in CI should set `TestSettings__Headless=true`.
+
+---
+
+## 10. Troubleshooting
 
 ### Tests Use the Wrong Browser
 
