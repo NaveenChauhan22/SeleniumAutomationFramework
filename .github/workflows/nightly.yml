@@ -268,12 +268,17 @@ jobs:
           find .ci/allure-results-merged -type f | wc -l
           allure generate .ci/allure-results-merged/ -o .ci/allure-report/ --clean --single-file
 
+      - name: Generate Allure Report (history snapshot)
+        run: |
+          rm -rf .ci/allure-report-history
+          allure generate .ci/allure-results-merged/ -o .ci/allure-report-history/ --clean
+
       - name: Prepare history cache payload
         run: |
           rm -rf .ci/allure-history
           mkdir -p .ci/allure-history
-          if [ -d ".ci/allure-report/history" ]; then
-            cp -R .ci/allure-report/history .ci/allure-history/history
+          if [ -d ".ci/allure-report-history/history" ]; then
+            cp -R .ci/allure-report-history/history .ci/allure-history/history
             echo "Prepared history cache payload from generated report."
           else
             echo "No history directory produced by report generation."
