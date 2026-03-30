@@ -21,7 +21,7 @@ public static class AllureBootstrap
     private static bool _initialized;
     private static readonly TimeSpan UnknownRunIdMergeWindow = TimeSpan.FromSeconds(30);
 
-    public static string ResultsDirectory => Path.Combine(ReportHelper.GetReportsDirectory(), "allure-results");
+    public static string ResultsDirectory => ResolveResultsDirectory();
 
     public static string ReportDirectory => Path.Combine(ReportHelper.GetReportsDirectory(), "allure-report");
 
@@ -404,6 +404,17 @@ public static class AllureBootstrap
         }
 
         return "unknown";
+    }
+
+    private static string ResolveResultsDirectory()
+    {
+        var configuredResultsDirectory = Environment.GetEnvironmentVariable("ALLURE_RESULTS_DIRECTORY");
+        if (!string.IsNullOrWhiteSpace(configuredResultsDirectory))
+        {
+            return Path.GetFullPath(configuredResultsDirectory);
+        }
+
+        return Path.Combine(ReportHelper.GetReportsDirectory(), "allure-results");
     }
 
     private static void ClearOldTestResults()
