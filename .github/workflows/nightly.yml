@@ -231,7 +231,7 @@ jobs:
         run: |
           echo "Merged Allure result files:"
           find .ci/allure-results-merged -type f | wc -l
-          allure generate .ci/allure-results-merged/ -o .ci/allure-report/ --clean
+          allure generate .ci/allure-results-merged/ -o .ci/allure-report/ --clean --single-file
 
       - name: Upload Merged Allure Raw Results
         uses: actions/upload-artifact@v4
