@@ -103,76 +103,18 @@ public abstract class BaseTest
         return homePageData;
     }
 
-    protected EventTestData LoadEventData()
+    protected IReadOnlyDictionary<string, string> LoadHomeValidationRow(string sheetName)
     {
-        Logger.Information("[UI] Loading event test data from Excel");
-        var dataFilePath = Path.Combine(AppContext.BaseDirectory, "TestData", "EventData.xlsx");
-        Assert.That(File.Exists(dataFilePath), Is.True, $"event data file should exist at {dataFilePath}");
+        Logger.Information("[UI] Loading home validation data from Excel sheet {SheetName}", sheetName);
+        var workbookPath = Path.Combine(AppContext.BaseDirectory, "TestData", "HomeNavigationValidationData.xlsx");
+        Assert.That(File.Exists(workbookPath), Is.True,
+            $"Excel validation file should exist at {workbookPath}");
 
-        var rows = ExcelDataProvider.ReadFirstSheet(dataFilePath);
-        Assert.That(rows.Count, Is.GreaterThan(0), "EventData.xlsx should contain one data row after headers");
+        var rows = ExcelDataProvider.ReadSheet(workbookPath, sheetName);
+        Assert.That(rows.Count, Is.GreaterThan(0),
+            $"Sheet '{sheetName}' must contain at least one data row after headers.");
 
-        var row = rows[0];
-
-        var title = GetValue(row, "Title", "EventTitle");
-        var description = GetValue(row, "Description", "EventDescription");
-        var category = GetValue(row, "Category", "EventCategory");
-        var city = GetValue(row, "City", "EventCity");
-        var venue = GetValue(row, "Venue", "EventVenue");
-        var price = GetValue(row, "Price", "EventPrice");
-        var totalSeats = GetValue(row, "TotalSeats", "Seats");
-        var eventsPath = GetValue(row, "EventsPath", "NavigationEventsPath");
-        var successMessageContains = GetValue(row, "SuccessMessageContains", "PopupMessageContains");
-
-        var eventData = new EventTestData
-        {
-            EventDetails = new EventTestData.EventDetailsData
-            {
-                Title = title,
-                Description = description,
-                Category = category,
-                City = city,
-                Venue = venue,
-                Price = price,
-                TotalSeats = totalSeats
-            },
-            Navigation = new EventTestData.NavigationData
-            {
-                EventsPath = string.IsNullOrWhiteSpace(eventsPath) ? "/events" : eventsPath
-            },
-            Assertions = new EventTestData.AssertionsData
-            {
-                SuccessMessageContains = string.IsNullOrWhiteSpace(successMessageContains) ? "event" : successMessageContains
-            }
-        };
-
-        Assert.That(eventData.EventDetails.Title, Is.Not.Null.And.Not.Empty,
-            "title is required in EventData.xlsx");
-        Assert.That(eventData.EventDetails.Category, Is.Not.Null.And.Not.Empty,
-            "category is required in EventData.xlsx");
-        Assert.That(eventData.EventDetails.City, Is.Not.Null.And.Not.Empty,
-            "city is required in EventData.xlsx");
-        Assert.That(eventData.EventDetails.Venue, Is.Not.Null.And.Not.Empty,
-            "venue is required in EventData.xlsx");
-        Assert.That(eventData.EventDetails.Price, Is.Not.Null.And.Not.Empty,
-            "price is required in EventData.xlsx");
-        Assert.That(eventData.EventDetails.TotalSeats, Is.Not.Null.And.Not.Empty,
-            "totalSeats is required in EventData.xlsx");
-
-        return eventData;
-    }
-
-    private static string GetValue(IReadOnlyDictionary<string, string> row, params string[] candidates)
-    {
-        foreach (var candidate in candidates)
-        {
-            if (row.TryGetValue(candidate, out var value))
-            {
-                return value;
-            }
-        }
-
-        return string.Empty;
+        return rows[0];
     }
 
     protected T LoadTestData<T>(string fileName) where T : class
@@ -368,31 +310,4 @@ public abstract class BaseTest
         }
     }
 
-    protected sealed class EventTestData
-    {
-        public EventDetailsData EventDetails { get; init; } = new();
-        public NavigationData Navigation { get; init; } = new();
-        public AssertionsData Assertions { get; init; } = new();
-
-        public sealed class EventDetailsData
-        {
-            public string Title { get; init; } = string.Empty;
-            public string Description { get; init; } = string.Empty;
-            public string Category { get; init; } = string.Empty;
-            public string City { get; init; } = string.Empty;
-            public string Venue { get; init; } = string.Empty;
-            public string Price { get; init; } = string.Empty;
-            public string TotalSeats { get; init; } = string.Empty;
-        }
-
-        public sealed class NavigationData
-        {
-            public string EventsPath { get; init; } = "/events";
-        }
-
-        public sealed class AssertionsData
-        {
-            public string SuccessMessageContains { get; init; } = "event";
-        }
-    }
 }

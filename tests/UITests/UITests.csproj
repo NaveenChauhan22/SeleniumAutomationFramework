@@ -51,7 +51,7 @@
     <None Include="..\..\resources\testdata\homePageData.json" Link="TestData\homePageData.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\resources\testdata\EventData.xlsx" Link="TestData\EventData.xlsx">
+    <None Include="..\..\resources\testdata\HomeNavigationValidationData.xlsx" Link="TestData\HomeNavigationValidationData.xlsx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

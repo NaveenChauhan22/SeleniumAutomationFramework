@@ -131,28 +131,6 @@ public class LoginPage : BasePage
     /// </summary>
     public string GetPasswordValidationErrorText() => Text(_passwordValidationError);
 
-    /// <summary>
-    /// Returns true when the Sign In button is in its disabled state (opacity-60 class).
-    /// The button is disabled when form has invalid input.
-    /// </summary>
-    public bool IsLoginButtonDisabled()
-    {
-        try
-        {
-            var btn = Wait.WaitForElementVisible(_loginButton);
-            if (btn == null) return true;
-
-            var disabledAttr = btn.GetAttribute("disabled");
-            var classAttr = btn.GetAttribute("class") ?? string.Empty;
-
-            return disabledAttr is not null || classAttr.Contains("disabled:opacity-60");
-        }
-        catch (Exception)
-        {
-            return true; // If element can't be found/checked, assume disabled
-        }
-    }
-
     // ── Field-state queries ────────────────────────────────────────────────────
     public bool IsEmailFieldDisplayed() => IsElementDisplayed(_emailInput);
     public bool IsPasswordFieldDisplayed() => IsElementDisplayed(_passwordInput);
