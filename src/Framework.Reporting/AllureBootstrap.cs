@@ -25,6 +25,14 @@ public static class AllureBootstrap
 
     public static string ReportDirectory => Path.Combine(ReportHelper.GetReportsDirectory(), "allure-report");
 
+    /// <summary>
+    /// The shared results directory under <c>reports/allure-results/</c>.  Both UI and API test
+    /// suites copy their bin-local Allure results here so that the final report contains all
+    /// suites regardless of which project finalises last.
+    /// </summary>
+    private static string SharedResultsDirectory =>
+        Path.Combine(ReportHelper.GetReportsDirectory(), "allure-results");
+
     private static string SessionMarkerPath => Path.Combine(ReportHelper.GetReportsDirectory(), ".allure-merge-session.marker");
 
     private sealed class MergeSessionMarker
@@ -105,6 +113,13 @@ public static class AllureBootstrap
             var endTime = DateTimeOffset.UtcNow;
             WriteEnvironmentInfo(RuntimeContext.StartTime, endTime);
 
+            // Also write environment info into the shared results directory so the
+            // combined report picks up the latest execution metadata.
+            WriteEnvironmentPropertiesFile(SharedResultsDirectory,
+                BuildEnvironmentValues(RuntimeContext.StartTime, endTime));
+            WriteEnvironmentInfoFile(SharedResultsDirectory,
+                BuildEnvironmentValues(RuntimeContext.StartTime, endTime));
+
             // Refresh the marker timestamp on completion so the merge window is measured
             // from when this suite FINISHED, not when it started. This is critical when
             // suites run longer than the merge window.
@@ -119,9 +134,9 @@ public static class AllureBootstrap
         }
     }
 
-    private static void WriteEnvironmentInfo(DateTimeOffset startTime, DateTimeOffset? endTime)
+    private static Dictionary<string, string> BuildEnvironmentValues(DateTimeOffset startTime, DateTimeOffset? endTime)
     {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["Browser"] = RuntimeContext.GetBrowsersSummary(),
             ["OS"] = RuntimeInformation.OSDescription,
@@ -131,6 +146,11 @@ public static class AllureBootstrap
             ["Duration"] = endTime.HasValue ? (endTime.Value - startTime).ToString("c") : "In Progress",
             ["TestType"] = RuntimeContext.GetTestTypesSummary()
         };
+    }
+
+    private static void WriteEnvironmentInfo(DateTimeOffset startTime, DateTimeOffset? endTime)
+    {
+        var values = BuildEnvironmentValues(startTime, endTime);
 
         WriteEnvironmentPropertiesFile(ResultsDirectory, values);
         WriteEnvironmentInfoFile(ResultsDirectory, values);
@@ -419,7 +439,10 @@ public static class AllureBootstrap
 
     private static void ClearOldTestResults()
     {
-        var resultsDir = ResultsDirectory;
+        // Clear the shared reports/allure-results directory so results from a previous
+        // run do not leak into the new execution.  The bin-local directory does not need
+        // explicit clearing because AllureLifecycle.CleanupResultDirectory() handles it.
+        var resultsDir = SharedResultsDirectory;
         if (!Directory.Exists(resultsDir))
         {
             return;
@@ -490,8 +513,20 @@ public static class AllureBootstrap
             return;
         }
 
+        // Always target the shared reports directory, not the bin-local ResultsDirectory,
+        // so that results from every test project are merged into one location.
+        var targetDirectory = SharedResultsDirectory;
+        Directory.CreateDirectory(targetDirectory);
+
+        // If source and target resolve to the same path there is nothing to copy.
+        if (string.Equals(Path.GetFullPath(sourceDirectory), Path.GetFullPath(targetDirectory),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         // Use file-based locking for cross-process synchronization in parallel execution
-        var lockFile = Path.Combine(ResultsDirectory, ".allure-copy-lock");
+        var lockFile = Path.Combine(targetDirectory, ".allure-copy-lock");
         try
         {
             // Wait up to 30 seconds for the lock
@@ -503,7 +538,7 @@ public static class AllureBootstrap
                 foreach (var sourceFile in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
                 {
                     var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
-                    var destinationFile = Path.Combine(ResultsDirectory, relativePath);
+                    var destinationFile = Path.Combine(targetDirectory, relativePath);
                     Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
                     File.Copy(sourceFile, destinationFile, true);
                 }
@@ -511,7 +546,7 @@ public static class AllureBootstrap
                 Log.Information("Copied {Count} Allure results files from {SourceDir} to {TargetDir}",
                     Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories).Length,
                     sourceDirectory,
-                    ResultsDirectory);
+                    targetDirectory);
             }
         }
         catch (IOException ex)
@@ -540,14 +575,14 @@ public static class AllureBootstrap
         var allureExecutable = ResolveAllureExecutable();
         if (allureExecutable is null)
         {
-            Log.Warning("Allure CLI was not found on PATH or via ALLURE_HOME. Results were generated at {ResultsDirectory}", ResultsDirectory);
+            Log.Warning("Allure CLI was not found on PATH or via ALLURE_HOME. Results were generated at {ResultsDirectory}", SharedResultsDirectory);
             return;
         }
 
         var startInfo = new ProcessStartInfo
         {
             FileName = allureExecutable,
-            Arguments = $"generate \"{ResultsDirectory}\" -o \"{ReportDirectory}\" --clean",
+            Arguments = $"generate \"{SharedResultsDirectory}\" -o \"{ReportDirectory}\" --clean",
             CreateNoWindow = true,
             RedirectStandardError = true,
             RedirectStandardOutput = true,

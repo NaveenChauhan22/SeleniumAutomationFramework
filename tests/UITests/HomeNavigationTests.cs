@@ -95,4 +95,68 @@ public class HomeNavigationTests : BaseTest
             "User should be navigated to bookings page after clicking My Bookings");
     }
 
+    [Test]
+    [Category("Medium")]
+    [Category("Sanity")]
+    [Priority(TestPriority.Medium)]
+    [AllureStory("Featured events defaults data in Excel")]
+    public void HomePage_EventsWithDefaults_Excel()
+    {
+        var row = LoadHomeValidationRow("HomePage_EventsWithDefaults");
+
+        Assert.That(row.TryGetValue("expectedHeading", out var heading), Is.True,
+            "expectedHeading column is required.");
+        Assert.That(heading, Is.EqualTo("Discover & Book"),
+            "expectedHeading in Excel should match home page heading expectation.");
+
+        Assert.That(row.TryGetValue("minimumCardCount", out var minimumCardCountRaw), Is.True,
+            "minimumCardCount column is required.");
+        Assert.That(int.TryParse(minimumCardCountRaw, out var minimumCardCount), Is.True,
+            "minimumCardCount should be a valid integer.");
+        Assert.That(minimumCardCount, Is.GreaterThanOrEqualTo(1),
+            "minimumCardCount should be at least 1 for featured events.");
+
+        Assert.That(row.TryGetValue("requiredFields", out var requiredFieldsRaw), Is.True,
+            "requiredFields column is required.");
+        var requiredFields = (requiredFieldsRaw ?? string.Empty)
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        Assert.That(requiredFields, Does.Contain("title"),
+            "requiredFields should include 'title'.");
+        Assert.That(requiredFields, Does.Contain("price"),
+            "requiredFields should include 'price'.");
+        Assert.That(requiredFields, Does.Contain("bookNowLink"),
+            "requiredFields should include 'bookNowLink'.");
+    }
+
+    [Test]
+    [Category("Medium")]
+    [Category("Sanity")]
+    [Priority(TestPriority.Medium)]
+    [AllureStory("Events route data in Excel")]
+    public void HomePage_NavigateToEventsPage_ExcelDataIsValid()
+    {
+        var row = LoadHomeValidationRow("HomePage_NavigateToEventsPage");
+
+        Assert.That(row.TryGetValue("eventsPath", out var eventsPath), Is.True,
+            "eventsPath column is required.");
+        Assert.That(eventsPath, Is.EqualTo("/events"),
+            "eventsPath in Excel should be '/events'.");
+    }
+
+    [Test]
+    [Category("Medium")]
+    [Category("Sanity")]
+    [Priority(TestPriority.Medium)]
+    [AllureStory("Bookings route data in Excel")]
+    public void HomePage_NavigateToBookingsPage_ExcelDataIsValid()
+    {
+        var row = LoadHomeValidationRow("HomePage_NavigateToBookingsPage");
+
+        Assert.That(row.TryGetValue("bookingsPath", out var bookingsPath), Is.True,
+            "bookingsPath column is required.");
+        Assert.That(bookingsPath, Is.EqualTo("/bookings"),
+            "bookingsPath in Excel should be '/bookings'.");
+    }
+
 }
