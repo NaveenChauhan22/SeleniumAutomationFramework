@@ -4,6 +4,14 @@
 
 Project: SeleniumAutomationFramework
 
+Related guides:
+
+- [SetupGuide.md](./SetupGuide.md)
+- [ExecutionGuide.md](./ExecutionGuide.md)
+- [AutomationCodingStandards.md](./AutomationCodingStandards.md)
+- [GitWorkflow.md](./GitWorkflow.md)
+- [README.md](../README.md)
+
 ------------------------------------------------------------------------
 
 # 1. Objective

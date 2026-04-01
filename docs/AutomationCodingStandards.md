@@ -4,6 +4,14 @@
 Project: SeleniumAutomationFramework  
 Purpose: Define coding standards and best practices for building and maintaining automation tests within this framework.
 
+Related guides:
+
+- [SetupGuide.md](./SetupGuide.md)
+- [ExecutionGuide.md](./ExecutionGuide.md)
+- [FrameworkArchitecture.md](./FrameworkArchitecture.md)
+- [GitWorkflow.md](./GitWorkflow.md)
+- [README.md](../README.md)
+
 ---
 
 # 1. General Principles

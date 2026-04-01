@@ -4,6 +4,14 @@
 Project: SeleniumAutomationFramework  
 Purpose: Define the Git workflow and collaboration process for contributors working on this repository.
 
+Related guides:
+
+- [SetupGuide.md](./SetupGuide.md)
+- [ExecutionGuide.md](./ExecutionGuide.md)
+- [AutomationCodingStandards.md](./AutomationCodingStandards.md)
+- [FrameworkArchitecture.md](./FrameworkArchitecture.md)
+- [README.md](../README.md)
+
 ---
 
 # 1. Objectives

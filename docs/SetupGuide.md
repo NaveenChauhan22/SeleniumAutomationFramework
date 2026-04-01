@@ -1,130 +1,199 @@
-# Setup Guide
+# Setup Guide (Windows + macOS)
 
-This guide covers everything you need to do once before running tests: prerequisites, credential configuration, browser settings, and understanding the API test architecture.
-
----
-
-## Table of Contents
-
-1. [Prerequisites](#1-prerequisites)
-2. [Repository Setup](#2-repository-setup)
-3. [Test Credentials Setup](#3-test-credentials-setup)
-4. [Browser Configuration](#4-browser-configuration)
-5. [API Authentication Architecture](#5-api-authentication-architecture)
-6. [API Response Validation Architecture](#6-api-response-validation-architecture)
-7. [Allure Reporting Prerequisites](#7-allure-reporting-prerequisites)
+Use this guide if you are setting up the framework for the first time.
 
 ---
 
-## 1. Prerequisites
+## What You Will Achieve
 
-### Required Software
+By the end of this guide, you will be able to:
+- Install all required tools in the correct order.
+- Clone and open the framework project.
+- Configure test credentials safely.
+- Run a first successful test execution.
 
-| Tool | Minimum Version | Notes |
-|------|----------------|-------|
-| [.NET SDK](https://dotnet.microsoft.com/download) | 10.0 | Required for build and test execution |
-| [Allure CLI](https://docs.qameta.io/allure/#_get_started) | 2.x | Required to generate and open HTML reports |
-| Java | 8+ | Required by Allure CLI (if using the standard distribution) |
-| Chrome, Edge, or Firefox | Latest stable | At least one browser must be installed |
+---
 
-### Verify Installation
+## 1. Install Prerequisites in Sequence
+
+Follow this exact order. Do not skip verification commands.
+
+### Step 1: Install Visual Studio Code (IDE)
+
+- Download and install VS Code: https://code.visualstudio.com/
+
+Why this step: VS Code is the editor used to open, run, and troubleshoot this framework.
+
+### Step 2: Install Git
+
+- Download and install Git: https://git-scm.com/downloads
+
+Verify installation:
+
+**Windows (PowerShell):**
+```powershell
+git --version
+```
+
+**macOS (Terminal):**
+```bash
+git --version
+```
+
+Why this step: Git lets you download the repository and keep your local code updated.
+
+### Step 3: Install .NET SDK (Required)
+
+- Install .NET SDK 10.x from: https://dotnet.microsoft.com/download
+
+Verify installation:
 
 **Windows (PowerShell):**
 ```powershell
 dotnet --version
-allure --version
-java -version
+dotnet --list-sdks
 ```
 
 **macOS (Terminal):**
 ```bash
 dotnet --version
-allure --version
+dotnet --list-sdks
+```
+
+Why this step: The test framework is built on .NET and cannot run without the SDK.
+
+### Step 4: Install Java (Required Before Allure CLI)
+
+- Install Java 8+ (recommended: Temurin 17): https://adoptium.net/
+
+Verify installation:
+
+**Windows (PowerShell):**
+```powershell
 java -version
 ```
 
-### Installing Allure CLI
+**macOS (Terminal):**
+```bash
+java -version
+```
 
-**Windows — via Scoop:**
+Why this step: Allure CLI depends on Java, so Java must be installed first.
+
+### Step 5: Install a Browser for UI Tests
+
+- Install at least one: Chrome, Edge, or Firefox (latest stable version).
+
+Why this step: UI tests open a real browser to perform actions like login and navigation.
+
+### Step 6: Install Allure CLI (After Java)
+
+**Windows option 1 (Scoop):**
 ```powershell
 scoop install allure
 ```
 
-**Windows — via Chocolatey:**
+**Windows option 2 (Chocolatey):**
 ```powershell
 choco install allure
 ```
 
-**macOS — via Homebrew:**
+**macOS (Homebrew):**
 ```bash
 brew install allure
 ```
 
-Verify by running `allure --version`. If the command is not found, ensure the Allure `bin` directory is on your `PATH`.
+Verify installation:
+
+**Windows (PowerShell):**
+```powershell
+allure --version
+```
+
+**macOS (Terminal):**
+```bash
+allure --version
+```
+
+Why this step: Allure CLI generates and opens the HTML test report.
+
+### Step 7: Install Useful VS Code Extensions (Recommended)
+
+- C#
+- C# Dev Kit
+- .NET Test Explorer
+
+Why this step: These extensions make test execution and troubleshooting easier for beginners.
 
 ---
 
 ## 2. Repository Setup
 
-### Clone and Build
+### Step 1: Clone the Repository
 
 **Windows (PowerShell):**
 ```powershell
 git clone <repository-url>
 cd SeleniumAutomationFramework
-dotnet restore
-dotnet build
 ```
 
 **macOS (Terminal):**
 ```bash
 git clone <repository-url>
 cd SeleniumAutomationFramework
-dotnet restore
-dotnet build
 ```
 
-A successful build produces no errors and outputs binaries under `tests/UITests/bin/` and `tests/APITests/bin/`.
+Why this step: This creates your local project copy where you will run all commands.
+
+### Step 2: Open the Project Folder in VS Code
+
+**Windows (PowerShell):**
+```powershell
+code .
+```
+
+**macOS (Terminal):**
+```bash
+code .
+```
+
+Why this step: Opening the folder in VS Code lets you run tests and view reports from one place.
+
+### Step 3: Restore Project Dependencies
+
+**Windows (PowerShell):**
+```powershell
+dotnet restore
+```
+
+**macOS (Terminal):**
+```bash
+dotnet restore
+```
+
+Why this step: This downloads all required NuGet packages before build and test execution.
+
+### Step 4: Build the Solution
+
+**Windows (PowerShell):**
+```powershell
+dotnet build .\SeleniumAutomationFramework.sln
+```
+
+**macOS (Terminal):**
+```bash
+dotnet build ./SeleniumAutomationFramework.sln
+```
+
+Why this step: Build confirms your environment is correct and the code compiles successfully.
 
 ---
 
-## 3. Test Credentials Setup
+## 3. Configure Test Credentials
 
-Sensitive test credentials are never stored directly in source files. Instead, they are injected via environment variables using the `${VARIABLE_NAME}` syntax in JSON test data files.
+Use this section to set login credentials required by test data.
 
-### Required Environment Variables
-
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `TEST_USER_EMAIL` | Valid test account email | `user@example.com` |
-| `TEST_USER_PASSWORD` | Valid test account password | `your_password_here` |
-
-> **Note:** Credentials shown throughout this guide are placeholder examples only and are not valid.
-
-### How Variable Substitution Works
-
-`resources/testdata/loginData.json` uses placeholders:
-
-```json
-{
-  "validCredentials": {
-    "email": "${TEST_USER_EMAIL}",
-    "password": "${TEST_USER_PASSWORD}"
-  }
-}
-```
-
-At test startup, `Framework.Data.JsonDataProvider` automatically:
-1. Loads the JSON file
-2. Finds `${VARIABLE_NAME}` patterns
-3. Replaces them with environment variable values
-4. Throws a clear `InvalidOperationException` if a variable is missing
-
-### Option 1: .env File (Recommended for Local Development)
-
-The `.env` file is the simplest approach — no shell setup or IDE restarts required.
-
-**Step 1:** Copy the template from the project root:
+### Step 1: Create a Local .env File
 
 **Windows (PowerShell):**
 ```powershell
@@ -136,193 +205,91 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-**Step 2:** Edit `.env` and fill in your actual values:
-```bash
-# .env — never commit this file
-TEST_USER_EMAIL=user@example.com
-TEST_USER_PASSWORD=your_password_here
+Why this step: .env stores your local credentials without changing source code.
 
-# Optional browser overrides (uncomment to activate)
-# TestSettings__Browser=chrome
-# TestSettings__Headless=false
+### Step 2: Add Your Test Credentials in .env
+
+Update the file with your valid test account values:
+
+```bash
+TEST_USER_EMAIL=your_test_email@example.com
+TEST_USER_PASSWORD=your_test_password
 ```
 
-**Step 3:** The framework loads `.env` automatically before tests execute. No additional commands are needed.
+Why this step: Tests read these values at runtime to log in.
 
-> `.env` is listed in `.gitignore` and will never be committed to source control.
+### Step 3: Understand Security Rule
 
-### Option 2: Session-Based Environment Variables
+- Never commit .env to source control.
+- Keep only test credentials, never production credentials.
 
-These are active for the current terminal session only and are discarded when the terminal closes.
+Why this step: This prevents accidental credential exposure.
 
-**Windows — PowerShell:**
+### Step 4: Optional Quick Check for Session Variables
+
+If you use terminal-based environment variables instead of .env:
+
+**Windows (PowerShell):**
 ```powershell
-$env:TEST_USER_EMAIL = "user@example.com"
-$env:TEST_USER_PASSWORD = "your_password_here"
+$env:TEST_USER_EMAIL = "your_test_email@example.com"
+$env:TEST_USER_PASSWORD = "your_test_password"
 ```
 
-**Windows — Command Prompt:**
-```cmd
-set TEST_USER_EMAIL=user@example.com
-set TEST_USER_PASSWORD=your_password_here
-```
-
-**macOS — Bash or Zsh:**
+**macOS (Terminal):**
 ```bash
-export TEST_USER_EMAIL="user@example.com"
-export TEST_USER_PASSWORD="your_password_here"
+export TEST_USER_EMAIL="your_test_email@example.com"
+export TEST_USER_PASSWORD="your_test_password"
 ```
 
-### Option 3: Persistent Environment Variables
-
-Use when you want variables to survive terminal restarts.
-
-**Windows — Via System Properties:**
-1. Press `Win + Pause` → click **Environment Variables**
-2. Under "User variables", click **New**
-3. Add `TEST_USER_EMAIL` and `TEST_USER_PASSWORD`
-4. Click **OK** and restart your terminal or IDE
-
-**Windows — Via PowerShell:**
-```powershell
-[Environment]::SetEnvironmentVariable("TEST_USER_EMAIL", "user@example.com", "User")
-[Environment]::SetEnvironmentVariable("TEST_USER_PASSWORD", "your_password_here", "User")
-```
-
-**macOS — Edit shell profile:**
-```bash
-# Open ~/.zshrc (zsh default) or ~/.bash_profile (bash)
-echo 'export TEST_USER_EMAIL="user@example.com"' >> ~/.zshrc
-echo 'export TEST_USER_PASSWORD="your_password_here"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-### Option 4: Loading .env Manually in a Shell
-
-If you prefer to source the `.env` file rather than relying on the framework auto-load:
-
-**Windows — PowerShell:**
-```powershell
-Get-Content .env | ForEach-Object {
-    if ($_ -and !$_.StartsWith('#')) {
-        $parts = $_ -split '=', 2
-        if ($parts.Count -eq 2) {
-            [Environment]::SetEnvironmentVariable($parts[0].Trim(), $parts[1].Trim())
-        }
-    }
-}
-```
-
-**macOS — Bash/Zsh:**
-```bash
-set -a
-source .env
-set +a
-```
-
-### Option 5: CI/CD Pipeline
-
-Set secrets in your CI/CD platform and inject them as environment variables during test execution.
-
-**GitHub Actions:**
-```yaml
-env:
-  TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-```
-
-**Azure Pipelines:**
-```yaml
-variables:
-  - group: 'Test Credentials'  # variable group containing TEST_USER_EMAIL and TEST_USER_PASSWORD
-```
-
-### Verifying Variables Are Set
-
-**Windows — PowerShell:**
-```powershell
-$env:TEST_USER_EMAIL
-$env:TEST_USER_PASSWORD
-# Or list all:
-Get-ChildItem env:TEST_USER*
-```
-
-**Windows — Command Prompt:**
-```cmd
-echo %TEST_USER_EMAIL%
-echo %TEST_USER_PASSWORD%
-```
-
-**macOS:**
-```bash
-echo "$TEST_USER_EMAIL"
-printenv | grep TEST_USER
-```
-
-### Troubleshooting Missing Variables
-
-| Symptom | Fix |
-|---------|-----|
-| `Environment variable 'TEST_USER_EMAIL' not found` error | Set the variable and restart terminal/IDE |
-| Variables set but tests still fail | Close and reopen your terminal; confirm with `$env:TEST_USER_EMAIL` |
-| Pass locally, fail in CI | Verify secrets are configured in GitHub/Azure platform |
-| Variable value has special characters | Quote the value: `$env:VAR = "val!ue"` |
+Why this step: This gives an alternate way to inject credentials for a single terminal session.
 
 ---
 
-## 4. Browser Configuration
+## 4. Configure Browser and Headless Mode
 
-The framework supports **Chrome** (default), **Edge**, and **Firefox** with a priority-based resolution system.
+Default browser is Chrome if no override is given.
 
-### Supported Browsers
+### Step 1: Keep Default Browser (No Change Needed)
 
-| Browser | Config Value | Notes |
-|---------|-------------|-------|
-| Chrome | `chrome` | Default — used if nothing else is configured |
-| Edge | `edge` | Chromium-based |
-| Firefox | `firefox` | Gecko engine |
+- Do nothing to use Chrome.
 
-### Configuration Priority (Highest to Lowest)
+Why this step: This is the fastest path for first execution.
 
-```
-1. Process environment variable  →  TestSettings__Browser=edge
-2. .env file variable            →  TestSettings__Browser=edge
-3. config/appsettings.json       →  "Browser": "edge"
-4. Built-in default              →  chrome (non-headless)
-```
+### Step 2: Change Browser in .env (Recommended Method)
 
-### Method 1: .env File (Recommended for Local Development)
-
-Add browser settings to the same `.env` file used for credentials:
+Add or update in .env:
 
 ```bash
-# .env
-TEST_USER_EMAIL=user@example.com
-TEST_USER_PASSWORD=your_password_here
-
 TestSettings__Browser=edge
 TestSettings__Headless=false
 ```
 
-The framework loads this automatically. Switch browsers by editing the file and re-running tests — no shell commands needed.
+Allowed browser values:
+- chrome
+- edge
+- firefox
 
-### Method 2: Session Environment Variable
+Why this step: .env is simple and works the same for both Windows and macOS.
 
-**Windows — PowerShell:**
+### Step 3: Optional Terminal Override (Current Session Only)
+
+**Windows (PowerShell):**
 ```powershell
 $env:TestSettings__Browser = "firefox"
 $env:TestSettings__Headless = "true"
 ```
 
-**macOS — Bash/Zsh:**
+**macOS (Terminal):**
 ```bash
 export TestSettings__Browser="firefox"
 export TestSettings__Headless="true"
 ```
 
-### Method 3: appsettings.json (Persistent Default)
+Why this step: Useful for quick trial runs without editing files.
 
-Edit `config/appsettings.json` for a permanent team default:
+### Step 4: Change Permanent Defaults in appsettings.json
+
+Open [config/appsettings.json](../config/appsettings.json) in VS Code and edit the values directly:
 
 ```json
 {
@@ -335,217 +302,72 @@ Edit `config/appsettings.json` for a permanent team default:
 }
 ```
 
-### Headless Mode
+Changes here become the new default for every run on your machine, without needing to set environment variables or edit `.env`.
 
-Running without a visible browser window (`Headless=true`) is ~10–15% faster and is the recommended CI/CD setting.
-
-| Where | Example |
-|-------|---------|
-| `.env` file | `TestSettings__Headless=true` |
-| PowerShell | `$env:TestSettings__Headless = "true"` |
-| Bash/Zsh | `export TestSettings__Headless="true"` |
-| appsettings.json | `"Headless": true` |
-
-> Use `Headless=false` locally when debugging — you can see the browser actions in real time.
-
-### Troubleshooting Browser Issues
-
-| Issue | Fix |
-|-------|-----|
-| Tests use wrong browser | Check `$env:TestSettings__Browser` (PowerShell) or `echo $TestSettings__Browser` (Bash) |
-| .env browser setting ignored | Verify no higher-priority env var is set in the current shell |
-| Headless not activating | Check for case sensitivity: value must be `true` not `True` |
-| Driver not found | Install the matching browser or update to the latest WebDriver |
+Why this step: Use `appsettings.json` when you want a setting to persist across all terminal sessions and IDE restarts — for example, always defaulting to Edge or increasing wait times for a slow environment. Full reference of every setting is in [ExecutionGuide.md — Section 8](./ExecutionGuide.md#8-useful-configuration-settings).
 
 ---
 
-## 5. API Authentication Architecture
+## 5. First Setup Validation Run
 
-### Overview
+Use this section to confirm setup is complete.
 
-API tests authenticate once and reuse the session token across all test classes in a suite run. This section describes how the auth system is implemented.
+### Step 1: Run All Tests Once
 
-### Key Components
-
-| Component | Location | Responsibility |
-|-----------|---------|----------------|
-| `ApiTestBase` | `tests/APITests/ApiTestBase.cs` | Suite setup, token cache, credential storage |
-| `ApiSessionContext` | `src/Framework.API/ApiSessionContext.cs` | Thread-safe (AsyncLocal) token store with a serialized token-renewal lock |
-| `AuthClient` | `src/Framework.API/AuthClient.cs` | Login, token extraction, re-authentication |
-| `BaseAPIPage` | `src/APIPages/BaseAPIPage.cs` | HTTP request dispatch; renews expired tokens via re-authentication and retries once when needed |
-
-### Authentication Flow
-
-1. Suite setup in `ApiTestBase` initializes shared HTTP and API clients.
-2. `EnsureSuiteAuthentication()` is called once from `[OneTimeSetUp]`.
-3. If a valid `SuiteSharedToken` already exists (another class ran earlier), it is reused.
-4. Otherwise, `PerformInitialAuthentication()` logs in, stores the token in `ApiSessionContext`, and caches it in `SuiteSharedToken`.
-5. Credentials are retained in memory (via `StoreCredentials`) for automatic re-auth if the token expires mid-suite.
-6. All API requests read the token from `ApiSessionContext` automatically.
-
-### Mid-Suite Token Expiry And Renewal
-
-If the current token is expired or close to expiry before a request is sent:
-1. `BaseAPIPage.GetOrRefreshTokenAsync(...)` checks the token state.
-2. `AuthClient.ReauthenticateIfStoredCredentialsAsync()` performs a fresh login using the stored credentials.
-3. The renewed token is stored in `ApiSessionContext`.
-4. The request continues with the renewed token.
-
-If an authenticated request still fails because the token is no longer usable:
-1. `BaseAPIPage.SendAsync(...)` enters the existing retry path.
-2. `AuthClient.ReauthenticateIfStoredCredentialsAsync()` performs a fresh login.
-3. The new token is stored in `ApiSessionContext`.
-4. The original request is retried once automatically.
-
-Tests that already completed before expiry remain unaffected.
-
-### Thread Safety
-
-- `ApiSessionContext` uses `AsyncLocal<T>` for execution-context isolation.
-- Concurrent token-renewal attempts are serialized by an internal `SemaphoreSlim`.
-- All token data is in-memory only and cleared during suite teardown.
-
-### Security Notes
-
-- Credentials are held in memory only for test runtime — not persisted to disk.
-- Do not apply this credential-caching strategy in production code.
-- Session and credentials are cleared during suite teardown.
-
-### API Test Troubleshooting
-
-| Issue | Check |
-|-------|-------|
-| Auth fails on setup | Confirm credentials are resolved from env vars / `.env` |
-| Token not in session after setup | Confirm `ApiTestBase.OneTimeSetUp` completed without exception |
-| Re-auth not triggering | Check `BaseAPIPage` is used for all authenticated calls |
-| Parallel run token conflicts | `ApiSessionContext` is `AsyncLocal` — each async context has isolated state |
-
----
-
-## 6. API Response Validation Architecture
-
-### Overview
-
-The framework provides a fluent response validation API that auto-detects JSON and XML payloads.
-
-### Component Map
-
-| Component | File | Role |
-|-----------|------|------|
-| `ResponseValidator` | `src/Framework.API/ResponseValidator.cs` | Fluent entry point; owns format detection and validator selection |
-| `IResponseValidator` | `src/Framework.API/IResponseValidator.cs` | Interface contract implemented by both format validators |
-| `JsonResponseValidator` | `src/Framework.API/JsonResponseValidator.cs` | JSON validation via Newtonsoft.Json JToken; dot-notation and JSONPath |
-| `XmlResponseValidator` | `src/Framework.API/XmlResponseValidator.cs` | XML validation via System.Xml.Linq XDocument + XPath |
-
-### Format Detection Rules
-
-1. Prefer the `Content-Type` response header.
-2. Fall back to payload shape: `{` or `[` → JSON; `<` → XML.
-3. Default to JSON when ambiguous.
-
-### Supported Validation Methods
-
-```csharp
-ResponseValidator
-    .FromContent(response.ResponseBody)    // or .FromResponse(httpResponseMessage)
-    .Validate("data.id", 42)               // exact value
-    .ValidateFieldExists("data.email")     // field presence
-    .ValidateFieldNotExists("data.secret") // field absence
-    .ValidateType("data.id", typeof(int))  // type assertion
-    .ValidateContains("message", "success"); // substring match
+**Windows (PowerShell):**
+```powershell
+dotnet test .\SeleniumAutomationFramework.sln
 ```
 
-### JSON Validation — Active Test Files
-
-JSON validation is currently used in:
-- `tests/APITests/AuthAPITests.cs`
-- `tests/APITests/BookingsAPITests.cs`
-- `tests/APITests/EventsAPITests.cs`
-
-### XML Validation — Test Coverage
-
-XML validation is covered by sample tests in `tests/APITests/XmlResponseValidatorTests.cs`. Payloads are stored as resource files (not inline strings):
-
-| Resource File | Purpose |
-|--------------|---------|
-| `resources/testdata/xml/xml-core-assertions-response.xml` | Field exists, value, contains |
-| `resources/testdata/xml/xml-complex-paths-response.xml` | Indexed XPath, type assertions, not-exists |
-| `resources/testdata/xml/xml-error-shape-response.xml` | Auto-detection, error payload, raw content |
-
-Resource files are copied to `TestData/xml/` in the test output directory. This is configured in `tests/APITests/APITests.csproj`.
-
-Each XML test attaches to the Allure report: XML payload, validation plan, and result summary.
-
-### Best Practices
-
-- Use `ResponseValidator.FromContent(...)` for all API result assertions.
-- Prefer `ValidateType(...)` for schema-sensitive fields (IDs, counts).
-- Use `ValidateFieldNotExists(...)` to confirm fields are absent in error responses.
-- Add XML test coverage only for endpoints that actually produce XML.
-
----
-
-## 7. Allure Reporting Prerequisites
-
-### Allure Configuration
-
-Allure integration is centralized:
-
-| File | Purpose |
-|------|---------|
-| `config/allureConfig.json` | Shared Allure configuration for both test projects |
-| `src/Framework.Reporting/AllureHooks.cs` | Shared NUnit setup fixture for Allure lifecycle |
-
-Both `UITests.csproj` and `APITests.csproj` link these shared files at build time.
-
-### Output Directories
-
-| Directory | Contents |
-|-----------|----------|
-| `reports/allure-results/` | Raw test result JSON and attachments (generated per run) |
-| `reports/allure-report/` | Compiled HTML report (generated by Allure CLI) |
-| `reports/screenshots/` | Screenshots from failed UI tests |
-
-### Test Priority and Allure Severity Mapping
-
-Apply the `[Priority]` attribute at class or method level:
-
-```csharp
-[Priority(TestPriority.High)]
-[Test]
-public void Login_WithValidCredentials() { }
+**macOS (Terminal):**
+```bash
+dotnet test ./SeleniumAutomationFramework.sln
 ```
 
-| Priority | Allure Severity | NUnit Category |
-|----------|----------------|---------------|
-| `High` | `critical` | `High`, `Smoke` |
-| `Medium` | `normal` | `Medium`, `Sanity` |
-| `Low` | `minor` | `Low` |
+Why this step: A full run validates tools, credentials, browser config, and framework wiring in one go.
 
-### Report Contents
+### Step 2: Generate Allure HTML Report
 
-The generated Allure report includes:
-- Pass/fail/skip/broken totals (overview)
-- Suite hierarchy (Suites tab)
-- Environment details: browser, OS, framework version, run duration
-- Severity grouping based on test priority
-- Failure categories: assertions, timeouts, missing elements, HTTP 5xx
-- Screenshots and page source attached for failed UI tests
-- Request/response payloads attached for failed API tests
+**Windows (PowerShell):**
+```powershell
+allure generate .\reports\allure-results -o .\reports\allure-report --clean
+```
 
-For report generation and viewing instructions, see [ExecutionGuide.md](./ExecutionGuide.md#6-allure-reports).
+**macOS (Terminal):**
+```bash
+allure generate ./reports/allure-results -o ./reports/allure-report --clean
+```
+
+Why this step: This converts raw test result files into a readable report.
+
+### Step 3: Open Allure Report
+
+**Windows (PowerShell):**
+```powershell
+allure open .\reports\allure-report
+```
+
+**macOS (Terminal):**
+```bash
+allure open ./reports/allure-report
+```
+
+Why this step: You can quickly review pass/fail details and evidence such as screenshots.
 
 ---
 
-## Related Files
+## 6. Quick Troubleshooting
 
-- [config/appsettings.json](../config/appsettings.json) — Browser and wait time defaults
-- [config/allureConfig.json](../config/allureConfig.json) — Allure configuration
-- [src/Framework.Reporting/AllureHooks.cs](../src/Framework.Reporting/AllureHooks.cs) — Allure lifecycle hooks
-- [src/Framework.API/ResponseValidator.cs](../src/Framework.API/ResponseValidator.cs)
-- [src/Framework.API/ApiSessionContext.cs](../src/Framework.API/ApiSessionContext.cs)
-- [src/Framework.API/AuthClient.cs](../src/Framework.API/AuthClient.cs)
-- [src/APIPages/BaseAPIPage.cs](../src/APIPages/BaseAPIPage.cs)
-- [tests/APITests/ApiTestBase.cs](../tests/APITests/ApiTestBase.cs)
-- [src/Framework.Data/JsonDataProvider.cs](../src/Framework.Data/JsonDataProvider.cs)
-- [resources/testdata/loginData.json](../resources/testdata/loginData.json)
+| Problem | What to Check |
+|---------|---------------|
+| `dotnet` command not found | Reinstall .NET SDK and reopen terminal |
+| `allure` command not found | Install Allure CLI, then verify PATH |
+| `java` command not found | Install Java first, then reinstall/verify Allure |
+| Login test fails with missing credentials | Confirm `.env` exists and has `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` |
+| Wrong browser opens | Check `TestSettings__Browser` in `.env` and terminal overrides |
+
+---
+
+## 7. Next Document to Follow
+
+After setup is complete, continue with execution steps in [ExecutionGuide.md](./ExecutionGuide.md).
