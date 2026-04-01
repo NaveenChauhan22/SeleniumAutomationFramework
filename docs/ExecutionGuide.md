@@ -1,51 +1,79 @@
-# Execution Guide
+# Execution Guide (Windows + macOS)
 
-This guide covers local execution modes, NUnit-based parallel execution, cross-browser strategy, CI/CD setup and execution, Allure reporting, and what is implemented in this framework.
+Use this guide to run tests after setup is complete.
 
----
-
-## Table of Contents
-
-1. [Quick Start](#1-quick-start)
-2. [Execution Modes](#2-execution-modes)
-3. [Running Tests by Suite](#3-running-tests-by-suite)
-4. [Cross-Browser Execution](#4-cross-browser-execution)
-5. [Headless Mode](#5-headless-mode)
-6. [NUnit Test Filtering](#6-nunit-test-filtering)
-7. [Allure Reports](#7-allure-reports)
-8. [CI/CD Pipeline Integration](#8-cicd-pipeline-integration)
-9. [What Is Implemented](#9-what-is-implemented)
-10. [Troubleshooting](#10-troubleshooting)
+If you have not completed setup yet, follow [SetupGuide.md](./SetupGuide.md) first.
 
 ---
 
-## 1. Quick Start
+## What You Will Achieve
 
-Ensure you have completed [SetupGuide.md](./SetupGuide.md) first (credentials, browser config, prerequisites).
+By the end of this guide, you will be able to:
+- Run all tests.
+- Run only UI or only API tests.
+- Run Smoke and Sanity subsets.
+- Generate and open Allure reports.
 
-### Build and Run All Tests
+---
+
+## 1. Pre-Run Checklist
+
+### Step 1: Open Terminal in Project Root
+
+Project root is the folder that contains `SeleniumAutomationFramework.sln`.
+
+Why this step: All commands in this guide assume you are in the project root.
+
+### Step 2: Verify Required Commands
+
+**Windows (PowerShell):**
+```powershell
+dotnet --version
+java -version
+allure --version
+```
+
+**macOS (Terminal):**
+```bash
+dotnet --version
+java -version
+allure --version
+```
+
+Why this step: It prevents execution failures caused by missing tools.
+
+### Step 3: Confirm Credentials Are Configured
+
+Make sure `.env` exists and contains:
+
+```bash
+TEST_USER_EMAIL=your_test_email@example.com
+TEST_USER_PASSWORD=your_test_password
+```
+
+Why this step: API and UI login tests require valid test account credentials.
+
+---
+
+## 2. First Standard Run (Recommended)
+
+### Step 1: Restore and Build
 
 **Windows (PowerShell):**
 ```powershell
 dotnet restore
-dotnet build
-dotnet test .\SeleniumAutomationFramework.sln
+dotnet build .\SeleniumAutomationFramework.sln
 ```
 
 **macOS (Terminal):**
 ```bash
 dotnet restore
-dotnet build
-dotnet test ./SeleniumAutomationFramework.sln
+dotnet build ./SeleniumAutomationFramework.sln
 ```
 
----
+Why this step: Restore/build confirms code and dependencies are in a healthy state.
 
-## 2. Execution Modes
-
-### 2.1 Parallel Run (Default)
-
-UI fixtures are annotated with `[FixtureLifeCycle(LifeCycle.InstancePerTestCase)]` + `[Parallelizable(ParallelScope.All)]`, API fixtures use `[Parallelizable(ParallelScope.Self)]`, and the test assemblies receive `[assembly: LevelOfParallelism(4)]` from `tests/AssemblyInfo.cs` (included by `tests/Directory.Build.props`). NUnit distributes eligible tests across up to 4 worker threads automatically — no runsettings file required.
+### Step 2: Run Full Test Suite
 
 **Windows (PowerShell):**
 ```powershell
@@ -57,73 +85,52 @@ dotnet test .\SeleniumAutomationFramework.sln
 dotnet test ./SeleniumAutomationFramework.sln
 ```
 
-What runs in parallel:
-- UI test methods inside `LoginTests` and `HomeNavigationTests` (same browser process)
-- `AuthAPITests` ↔ `BookingsAPITests` ↔ `EventsAPITests` (API)
+Why this step: This executes both API and UI tests in one command.
 
-### 2.2 Sequential Run (Debug / Isolation)
-
-Pass `NUnit.NumberOfTestWorkers=0` directly on the command line to override the assembly-level setting and force single-threaded execution. No runsettings file needed.
+### Step 3: Generate Allure Report
 
 **Windows (PowerShell):**
 ```powershell
-dotnet test .\SeleniumAutomationFramework.sln -- NUnit.NumberOfTestWorkers=0
+allure generate .\reports\allure-results -o .\reports\allure-report --clean
 ```
 
 **macOS (Terminal):**
 ```bash
-dotnet test ./SeleniumAutomationFramework.sln -- NUnit.NumberOfTestWorkers=0
+allure generate ./reports/allure-results -o ./reports/allure-report --clean
 ```
 
-> The `--` separator passes options directly to the NUnit adapter at runtime, overriding in-code settings without changing source.
+Why this step: It converts raw result files into a readable HTML dashboard.
 
-### 2.3 Cross-Browser Runs
-
-Run the same UI tests against different browsers by setting the `TestSettings__Browser` environment variable. Each invocation is a separate process with its own browser instance — no fixture-level conflict.
+### Step 4: Open Allure Report
 
 **Windows (PowerShell):**
 ```powershell
-# Chrome (default)
-dotnet test .\tests\UITests\UITests.csproj
-
-# Edge
-$env:TestSettings__Browser = "edge"
-dotnet test .\tests\UITests\UITests.csproj
-
-# Firefox
-$env:TestSettings__Browser = "firefox"
-dotnet test .\tests\UITests\UITests.csproj
-```
-
-**macOS (Bash/Zsh):**
-```bash
-export TestSettings__Browser="edge"
-dotnet test ./tests/UITests/UITests.csproj
-```
-
-To run multiple browsers in true parallel, open **separate terminals** (or use a CI matrix — see Section 8) and set the env var per terminal before running.
-
-### 2.4 API + UI Together
-
-Both suites write to the same `reports/allure-results/` folder. Run both projects in one command:
-
-**Windows (PowerShell):**
-```powershell
-dotnet test .\SeleniumAutomationFramework.sln
+allure open .\reports\allure-report
 ```
 
 **macOS (Terminal):**
 ```bash
-dotnet test ./SeleniumAutomationFramework.sln
+allure open ./reports/allure-report
 ```
 
-NUnit's parallel workers will run API fixtures and UI fixtures concurrently within that single invocation.
+Why this step: This lets you review failed tests with screenshots and API payloads.
+
+### Where to Find Your Reports After a Run
+
+| What | Location |
+|------|----------|
+| Allure HTML report | `reports/allure-report/index.html` — open this in a browser if `allure open` is unavailable |
+| Raw test result files | `reports/allure-results/` — JSON files written by each test run |
+| Screenshots (failed UI tests) | `reports/screenshots/` — one PNG per failed UI test |
+| Test execution log | `reports/logs/` — plain-text log from the latest run |
+
+All these folders are created automatically when tests run. You do not need to create them manually.
 
 ---
 
-## 3. Running Tests by Suite
+## 3. Run Specific Test Suites
 
-### API Tests Only
+### Step 1: Run Only API Tests
 
 **Windows (PowerShell):**
 ```powershell
@@ -135,7 +142,9 @@ dotnet test .\tests\APITests\APITests.csproj
 dotnet test ./tests/APITests/APITests.csproj
 ```
 
-### UI Tests Only
+Why this step: Use this when validating backend APIs only.
+
+### Step 2: Run Only UI Tests
 
 **Windows (PowerShell):**
 ```powershell
@@ -147,156 +156,107 @@ dotnet test .\tests\UITests\UITests.csproj
 dotnet test ./tests/UITests/UITests.csproj
 ```
 
-### Skip Rebuild (Faster after Initial Build)
+Why this step: Use this when validating browser-based UI flows only.
 
-Add `--no-build` to skip compilation when source has not changed:
+### Step 3: Run Faster Without Rebuild (Optional)
 
 **Windows (PowerShell):**
 ```powershell
-dotnet test .\tests\UITests\UITests.csproj --no-build
 dotnet test .\tests\APITests\APITests.csproj --no-build
+dotnet test .\tests\UITests\UITests.csproj --no-build
 ```
 
 **macOS (Terminal):**
 ```bash
-dotnet test ./tests/UITests/UITests.csproj --no-build
 dotnet test ./tests/APITests/APITests.csproj --no-build
+dotnet test ./tests/UITests/UITests.csproj --no-build
 ```
+
+Why this step: It saves time when code has not changed since last build.
 
 ---
 
-## 4. Cross-Browser Execution
+## 4. Run By Priority (Smoke and Sanity)
 
-The default browser is **Chrome**. You can override it using environment variables, the `.env` file, or `appsettings.json`.
-
-### Via Environment Variable (Inline — One-Liner)
+### Step 1: Run Smoke Tests
 
 **Windows (PowerShell):**
 ```powershell
-# Chrome (default)
-dotnet test .\tests\UITests\UITests.csproj
-
-# Edge
-$env:TestSettings__Browser = "edge"; dotnet test .\tests\UITests\UITests.csproj
-
-# Firefox
-$env:TestSettings__Browser = "firefox"; dotnet test .\tests\UITests\UITests.csproj
-```
-
-**macOS (Bash/Zsh):**
-```bash
-# Chrome (default)
-dotnet test ./tests/UITests/UITests.csproj
-
-# Edge
-export TestSettings__Browser="edge"; dotnet test ./tests/UITests/UITests.csproj
-
-# Firefox
-export TestSettings__Browser="firefox"; dotnet test ./tests/UITests/UITests.csproj
-```
-
-**Windows (Command Prompt):**
-```cmd
-set TestSettings__Browser=edge
-dotnet test tests\UITests\UITests.csproj
-```
-
-### Via .env File (Recommended for Local Development)
-
-Edit the `.env` file in the project root and re-run tests:
-
-```bash
-# .env
-TestSettings__Browser=firefox
-TestSettings__Headless=false
-```
-
-```powershell
-# Windows
-dotnet test .\tests\UITests\UITests.csproj
-```
-
-```bash
-# macOS
-dotnet test ./tests/UITests/UITests.csproj
-```
-
-### Via appsettings.json (Persistent Default)
-
-Edit `config/appsettings.json`:
-
-```json
-{
-  "TestSettings": {
-    "Browser": "edge"
-  }
-}
-```
-
-Then run tests normally:
-
-**Windows (PowerShell):**
-```powershell
-dotnet test .\tests\UITests\UITests.csproj
+dotnet test .\SeleniumAutomationFramework.sln --filter "Category=High&Category=Smoke"
 ```
 
 **macOS (Terminal):**
 ```bash
-dotnet test ./tests/UITests/UITests.csproj
+dotnet test ./SeleniumAutomationFramework.sln --filter "Category=High&Category=Smoke"
 ```
 
-### Configuration Priority
+Why this step: Smoke tests are a fast confidence check for critical paths.
 
-```
-1. Process environment variable  (highest — overrides everything)
-2. .env file variable
-3. config/appsettings.json
-4. Built-in default: chrome, non-headless
-```
-
-### Running All Browsers in Sequence
+### Step 2: Run Sanity Tests
 
 **Windows (PowerShell):**
 ```powershell
-# Chrome
-dotnet test .\tests\UITests\UITests.csproj
+dotnet test .\SeleniumAutomationFramework.sln --filter "Category=Sanity"
+```
 
-# Edge
+**macOS (Terminal):**
+```bash
+dotnet test ./SeleniumAutomationFramework.sln --filter "Category=Sanity"
+```
+
+Why this step: Sanity tests validate important but broader functionality after smoke.
+
+### Step 3: Run One Test by Name (Optional)
+
+**Windows (PowerShell):**
+```powershell
+dotnet test .\tests\UITests\UITests.csproj --filter "Name=Login_WithValidCredentials"
+```
+
+**macOS (Terminal):**
+```bash
+dotnet test ./tests/UITests/UITests.csproj --filter "Name=Login_WithValidCredentials"
+```
+
+Why this step: This is useful for quick re-check of a single failed test.
+
+---
+
+## 5. Browser and Headless Execution
+
+### Step 1: Run UI Tests on Edge
+
+**Windows (PowerShell):**
+```powershell
 $env:TestSettings__Browser = "edge"
 dotnet test .\tests\UITests\UITests.csproj
-
-# Firefox
-$env:TestSettings__Browser = "firefox"
-dotnet test .\tests\UITests\UITests.csproj
-
-# Clear override
-Remove-Item Env:\TestSettings__Browser
 ```
 
-**macOS (Bash/Zsh):**
+**macOS (Terminal):**
 ```bash
-# Chrome
-dotnet test ./tests/UITests/UITests.csproj
-
-# Edge
 export TestSettings__Browser="edge"
 dotnet test ./tests/UITests/UITests.csproj
-
-# Firefox
-export TestSettings__Browser="firefox"
-dotnet test ./tests/UITests/UITests.csproj
-
-# Clear override
-unset TestSettings__Browser
 ```
 
----
+Why this step: This validates browser compatibility beyond default Chrome.
 
-## 5. Headless Mode
+### Step 2: Run UI Tests on Firefox
 
-Headless mode runs the browser without a visible window. It is ~10–15% faster and recommended for CI/CD.
+**Windows (PowerShell):**
+```powershell
+$env:TestSettings__Browser = "firefox"
+dotnet test .\tests\UITests\UITests.csproj
+```
 
-### Enable Headless
+**macOS (Terminal):**
+```bash
+export TestSettings__Browser="firefox"
+dotnet test ./tests/UITests/UITests.csproj
+```
+
+Why this step: This checks behavior on a non-Chromium browser engine.
+
+### Step 3: Enable Headless Mode
 
 **Windows (PowerShell):**
 ```powershell
@@ -304,381 +264,122 @@ $env:TestSettings__Headless = "true"
 dotnet test .\tests\UITests\UITests.csproj
 ```
 
-**macOS (Bash/Zsh):**
+**macOS (Terminal):**
 ```bash
 export TestSettings__Headless="true"
 dotnet test ./tests/UITests/UITests.csproj
 ```
 
-**Via .env file:**
-```bash
-TestSettings__Headless=true
+Why this step: Headless mode is faster and ideal for CI-like runs.
+
+### Step 4: Reset Temporary Browser Overrides (Optional)
+
+**Windows (PowerShell):**
+```powershell
+Remove-Item Env:\TestSettings__Browser -ErrorAction SilentlyContinue
+Remove-Item Env:\TestSettings__Headless -ErrorAction SilentlyContinue
 ```
 
-**Via appsettings.json:**
+**macOS (Terminal):**
+```bash
+unset TestSettings__Browser
+unset TestSettings__Headless
+```
+
+Why this step: This avoids confusion in future runs caused by old terminal values.
+
+---
+
+## 6. Sequential Run for Debugging
+
+### Step 1: Force Single-Threaded Execution
+
+**Windows (PowerShell):**
+```powershell
+dotnet test .\SeleniumAutomationFramework.sln -- NUnit.NumberOfTestWorkers=0
+```
+
+**macOS (Terminal):**
+```bash
+dotnet test ./SeleniumAutomationFramework.sln -- NUnit.NumberOfTestWorkers=0
+```
+
+Why this step: Sequential mode is easier to debug when failures are hard to reproduce.
+
+---
+
+## 7. Basic Troubleshooting
+
+| Problem | What to Check |
+|---------|---------------|
+| `dotnet test` fails immediately | Run `dotnet restore` and `dotnet build` again |
+| `allure` command not found | Install Allure CLI and verify with `allure --version` |
+| Tests fail with auth/credential error | Check `.env` values for `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` |
+| Wrong browser opens | Check `TestSettings__Browser` in `.env` and active terminal variables |
+| Allure report is empty | Verify files exist in `reports/allure-results` before running `allure generate` |
+
+---
+
+## 8. Useful Configuration Settings
+
+All default behaviour is controlled by [config/appsettings.json](../config/appsettings.json). Open the file in VS Code and change any value — no terminal commands needed. The change takes effect on the next test run.
+
+### Full Settings Reference
+
+#### TestSettings
+
+| Key | Default | What it controls |
+|-----|---------|------------------|
+| `Browser` | `chrome` | Which browser runs UI tests. Allowed values: `chrome`, `edge`, `firefox` |
+| `Headless` | `false` | `true` = browser runs invisibly (faster, good for CI). `false` = browser window is visible (good for debugging) |
+| `ImplicitWaitSeconds` | `5` | How long the driver waits automatically before reporting an element as not found |
+| `ExplicitWaitSeconds` | `15` | Maximum time an explicit wait (e.g. wait until button appears) will keep retrying before failing |
+| `ExplicitWaitPollingMs` | `250` | How often (in milliseconds) an explicit wait checks the condition again |
+| `PageLoadTimeoutSeconds` | `60` | Maximum time allowed for a full page to load before the test fails |
+| `ScriptTimeoutSeconds` | `30` | Maximum time allowed for a JavaScript command to complete |
+| `Environment` | `local` | Labels the test run environment. Appears in the Allure report for traceability |
+| `AllureResultsFolder` | `allure-results` | Subfolder name where raw Allure result files are written |
+
+#### Reporting
+
+| Key | Default | What it controls |
+|-----|---------|------------------|
+| `EnableExecutionHistory` | `false` | `true` = Allure report shows a trend graph of previous runs. Requires keeping the `reports/allure-report/history` folder between runs |
+
+#### Api
+
+| Key | Default | What it controls |
+|-----|---------|------------------|
+| `BaseUrl` | *(set in file)* | The root URL for all API test requests |
+| `ShowBearerToken` | `false` | Controls whether the auth token is visible in Allure report attachments — see below |
+
+> **Priority rule:** A value set in `.env` or as an environment variable always wins over `appsettings.json`. Use `appsettings.json` for team-wide or machine-wide defaults, and `.env` for personal overrides.
+
+---
+
+### ShowBearerToken
+
 ```json
-{
-  "TestSettings": {
-    "Headless": true
-  }
+"Api": {
+  "ShowBearerToken": false
 }
 ```
 
-### Disable Headless (Visual Debug Mode)
+| Value | What happens |
+|-------|--------------|
+| `false` (default) | The Bearer token is masked in all Allure report attachments and logs — safe for sharing reports |
+| `true` | The full token value is printed in Allure request/response attachments — useful when debugging API authentication failures |
 
-**Windows (PowerShell):**
-```powershell
-$env:TestSettings__Headless = "false"
-dotnet test .\tests\UITests\UITests.csproj
-```
+Why this setting exists: API tests log request and response details to the Allure report. A Bearer token is a sensitive credential. By default it is hidden so reports can be shared without leaking auth tokens.
 
-**macOS (Bash/Zsh):**
-```bash
-export TestSettings__Headless="false"
-dotnet test ./tests/UITests/UITests.csproj
-```
-
-> Use `Headless=false` when debugging — you can observe every browser step in real time.
+When to set it to `true`: Only temporarily, on your local machine, when an API test is failing with an auth error and you need to inspect the exact token being sent. Set it back to `false` before committing or sharing the report.
 
 ---
 
-## 6. NUnit Test Filtering
+## 9. Advanced (Optional)
 
-Tests are assigned NUnit categories via the `[Priority]` attribute.
+- CI pipeline file: [ci/azure-pipelines.yml](../ci/azure-pipelines.yml)
+- Framework can run API and UI tests in parallel through NUnit.
+- For day-to-day manual usage, sections 1 to 8 are enough.
 
-### Priority-to-Category Mapping
-
-| Priority | Categories Applied |
-|----------|--------------------|
-| `High` | `Category("High")`, `Category("Smoke")` |
-| `Medium` | `Category("Medium")`, `Category("Sanity")` |
-| `Low` | `Category("Low")` |
-
-### Run a Single Test by Name
-
-**Windows (PowerShell):**
-```powershell
-dotnet test .\tests\UITests\UITests.csproj --filter "Name=Login_WithValidCredentials"
-dotnet test .\tests\APITests\APITests.csproj --filter "Name=MeEndpoint_WithValidToken_ShouldReturnCurrentUser"
-```
-
-**macOS (Bash/Zsh):**
-```bash
-dotnet test ./tests/UITests/UITests.csproj --filter "Name=Login_WithValidCredentials"
-dotnet test ./tests/APITests/APITests.csproj --filter "Name=MeEndpoint_WithValidToken_ShouldReturnCurrentUser"
-```
-
-Use `FullyQualifiedName~` for a partial name match:
-
-**Windows (PowerShell):**
-```powershell
-dotnet test .\tests\UITests\UITests.csproj --filter "FullyQualifiedName~Login_WithValidCredentials"
-```
-
-**macOS (Bash/Zsh):**
-```bash
-dotnet test ./tests/UITests/UITests.csproj --filter "FullyQualifiedName~Login_WithValidCredentials"
-```
-
-### Run by Category — Suite Scope
-
-**Windows (PowerShell):**
-```powershell
-# High priority only
-dotnet test .\tests\UITests\UITests.csproj --filter "Category=High"
-dotnet test .\tests\APITests\APITests.csproj --filter "Category=High"
-
-# Sanity (Medium priority)
-dotnet test .\tests\UITests\UITests.csproj --filter "Category=Sanity"
-dotnet test .\tests\APITests\APITests.csproj --filter "Category=Sanity"
-
-# Must have both High and Smoke
-dotnet test .\tests\UITests\UITests.csproj --filter "Category=High&Category=Smoke"
-dotnet test .\tests\APITests\APITests.csproj --filter "Category=High&Category=Smoke"
-```
-
-**macOS (Bash/Zsh):**
-```bash
-# High priority only
-dotnet test ./tests/UITests/UITests.csproj --filter "Category=High"
-dotnet test ./tests/APITests/APITests.csproj --filter "Category=High"
-
-# Sanity (Medium priority)
-dotnet test ./tests/UITests/UITests.csproj --filter "Category=Sanity"
-dotnet test ./tests/APITests/APITests.csproj --filter "Category=Sanity"
-
-# Must have both High and Smoke
-dotnet test ./tests/UITests/UITests.csproj --filter "Category=High&Category=Smoke"
-dotnet test ./tests/APITests/APITests.csproj --filter "Category=High&Category=Smoke"
-```
-
-### Run by Category — Solution Scope (Both Projects)
-
-**Windows (PowerShell):**
-```powershell
-dotnet test .\SeleniumAutomationFramework.sln --filter "Category=High"
-dotnet test .\SeleniumAutomationFramework.sln --filter "Category=High&Category=Smoke"
-dotnet test .\SeleniumAutomationFramework.sln --filter "Category=Medium&Category=Sanity"
-```
-
-**macOS (Bash/Zsh):**
-```bash
-dotnet test ./SeleniumAutomationFramework.sln --filter "Category=High"
-dotnet test ./SeleniumAutomationFramework.sln --filter "Category=High&Category=Smoke"
-dotnet test ./SeleniumAutomationFramework.sln --filter "Category=Medium&Category=Sanity"
-```
-
-### Composite Filters
-
-**Exclude a category:**
-
-```powershell
-# Windows
-dotnet test .\SeleniumAutomationFramework.sln --filter "Category!=Sanity"
-```
-
-```bash
-# macOS
-dotnet test ./SeleniumAutomationFramework.sln --filter "Category!=Sanity"
-```
-
-**Combine name and category:**
-
-```powershell
-# Windows — UI Login tests that are High priority
-dotnet test .\tests\UITests\UITests.csproj --filter "FullyQualifiedName~Login&Category=High"
-```
-
-```bash
-# macOS — UI Login tests that are High priority
-dotnet test ./tests/UITests/UITests.csproj --filter "FullyQualifiedName~Login&Category=High"
-```
-
-### List All Discovered Tests
-
-**Windows (PowerShell):**
-```powershell
-dotnet test .\tests\UITests\UITests.csproj --list-tests
-dotnet test .\tests\APITests\APITests.csproj --list-tests
-```
-
-**macOS (Bash/Zsh):**
-```bash
-dotnet test ./tests/UITests/UITests.csproj --list-tests
-dotnet test ./tests/APITests/APITests.csproj --list-tests
-```
-
----
-
-## 7. Allure Reports
-
-### Generate the Report
-
-Run tests first — results are written to `reports/allure-results/` automatically. Then generate the HTML report:
-
-**Windows (PowerShell):**
-```powershell
-allure generate .\reports\allure-results -o .\reports\allure-report --clean
-```
-
-**macOS (Terminal):**
-```bash
-allure generate ./reports/allure-results -o ./reports/allure-report --clean
-```
-
-> The framework attempts to auto-generate the report after each run when Allure CLI is on `PATH`.
-
-### Open the Report
-
-**Windows (PowerShell):**
-```powershell
-allure open .\reports\allure-report
-```
-
-**macOS (Terminal):**
-```bash
-allure open ./reports/allure-report
-```
-
-This starts a local web server and opens the report in your default browser.
-
-### Full Run + Report in One Command
-
-**Windows (PowerShell):**
-```powershell
-dotnet test .\SeleniumAutomationFramework.sln
-allure generate .\reports\allure-results -o .\reports\allure-report --clean
-allure open .\reports\allure-report
-```
-
-**macOS (Terminal):**
-```bash
-dotnet test ./SeleniumAutomationFramework.sln
-allure generate ./reports/allure-results -o ./reports/allure-report --clean
-allure open ./reports/allure-report
-```
-
-### Failure Attachments
-
-| Test Type | What Is Attached on Failure |
-|-----------|----------------------------|
-| UI Tests | Screenshot (also saved to `reports/screenshots/`), page source |
-| API Tests | Request payload, response payload |
-| XML Tests | XML payload, validation plan, validation result |
-
----
-
-## 8. CI/CD Pipeline Integration
-
-CI pipeline files are maintained under `.github/workflows/` (GitHub Actions) and `ci/` (Azure Pipelines).
-
-### GitHub Actions
-
-| File | Trigger | Scope |
-|------|---------|-------|
-| [.github/workflows/ci.yml](../.github/workflows/ci.yml) | Push / PR to `main`, `develop` | PR → smoke tests; push → full suite |
-| [.github/workflows/nightly.yml](../.github/workflows/nightly.yml) | Schedule 02:00 UTC + manual dispatch | Full suite (manual dispatch can select smoke) |
-
-**Pipeline stages (`ci.yml`):**
-
-```
-build → api-tests ─────────────────────────────┐
-      → ui-tests (matrix: chrome/firefox/edge) ─┴→ allure-report
-```
-
-**Required secrets** (set in GitHub → Settings → Secrets → Actions):
-
-| Secret | Value |
-|--------|-------|
-| `TEST_USER_EMAIL` | Test account email |
-| `TEST_USER_PASSWORD` | Test account password |
-
-**PR vs Push behaviour:**
-- Pull request → `--filter "Category=High&Category=Smoke"` applied to both API and UI jobs
-- Push to `main`/`develop` → full suite on all three browsers (Chrome, Firefox, Edge)
-
-**Manual nightly dispatch** — trigger via GitHub Actions UI → Nightly → Run workflow → choose `full` or `smoke`.
-
----
-
-### Azure Pipelines
-
-Pipeline file: [ci/azure-pipelines.yml](../ci/azure-pipelines.yml)
-
-Configure the pipeline in Azure DevOps:
-1. **New pipeline** → connect your repo → select **Existing Azure Pipelines YAML file** → path: `ci/azure-pipelines.yml`
-2. Add pipeline variables `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` (mark both as **secret**)
-
-**Pipeline stages:**
-
-```
-Build → Test (parallel: APITests + UITests matrix: chrome/firefox/edge) → Report
-```
-
-Same PR/push filtering logic as GitHub Actions: PRs run smoke tests, branch pushes run full suite.
-
----
-
-### Recommended CI Settings
-
-| Setting | Recommendation |
-|---------|----------------|
-| Headless | Always `true` in CI — set via `TestSettings__Headless` env var |
-| Credentials | Use platform secrets — never hard-code |
-| Build step | Restore and build before test; use `--no-build` in test step |
-| Report | Allure results are uploaded per job and merged in the report step |
-| PR filter | `Category=High&Category=Smoke` — fast smoke gate on every PR |
-| Browser matrix | Run UI tests across Chrome, Firefox, and Edge |
-| Nightly | Full suite across all supported browsers (manual dispatch can select smoke) |
-
----
-
-## 9. What Is Implemented
-
-This section summarizes what is already implemented for parallel execution and CI/CD.
-
-### Parallel Test Execution (Implemented)
-
-- NUnit parallel execution enabled at assembly level with `LevelOfParallelism(4)`.
-- UI fixtures use `FixtureLifeCycle(LifeCycle.InstancePerTestCase)` + `Parallelizable(ParallelScope.All)` for safe method-level parallelism.
-- API fixtures use `Parallelizable(ParallelScope.Self)` for class-level parallelism.
-- UI and API suites can run in one command (`dotnet test SeleniumAutomationFramework.sln`) with concurrent fixture execution.
-- Sequential debug mode is supported using `-- NUnit.NumberOfTestWorkers=0`.
-- Cross-browser execution is supported by process-level browser selection via `TestSettings__Browser`.
-
-### CI/CD (Implemented)
-
-- GitHub Actions CI pipeline: `.github/workflows/ci.yml`.
-- GitHub Actions nightly pipeline: `.github/workflows/nightly.yml`.
-- Azure Pipelines definition: `ci/azure-pipelines.yml`.
-- Cross-browser matrix execution in CI for Chrome, Firefox, and Edge.
-- PR optimization: smoke-only filter (`Category=High&Category=Smoke`).
-- Push/nightly execution: full suite across Chrome, Firefox, and Edge.
-- Allure results are uploaded per test job and merged into a final report artifact.
-- Manual trigger support exists through `workflow_dispatch`.
-
-### CI Execution Flow (Implemented)
-
-```text
-Build -> API Tests + UI Tests (matrix browsers) -> Allure Report
-```
-
-### Required Configuration For CI
-
-- GitHub repository secrets: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`.
-- Azure pipeline secret variables: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`.
-- Browser runs in CI should set `TestSettings__Headless=true`.
-
----
-
-## 10. Troubleshooting
-
-### Tests Use the Wrong Browser
-
-1. Check active env var: `$env:TestSettings__Browser` (PowerShell) or `echo $TestSettings__Browser` (Bash)
-2. Check `.env` file for `TestSettings__Browser=...`
-3. Check `config/appsettings.json`
-4. Default is always `chrome`
-
-### .env File Not Loading
-
-1. Verify the file is named exactly `.env` (no extension) in the project root
-2. Confirm format is `KEY=VALUE` with no spaces around `=`
-3. Comments must start with `#`
-4. Restart your terminal if it was open before creating the file
-
-### Allure Command Not Found
-
-1. Confirm Allure CLI is installed: `allure --version`
-2. Check that the Allure `bin` directory is on `PATH`
-3. On macOS: `brew install allure` is the simplest fix
-4. On Windows: `scoop install allure` or `choco install allure`
-
-### Tests Pass Locally but Fail in CI
-
-1. Verify `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` secrets are configured in the CI platform
-2. Confirm `TestSettings__Headless=true` is set (some browsers fail without headless in CI)
-3. Check that the correct browser driver version is available on the CI image
-
-### Build Succeeds but Tests Do Not Run
-
-1. Ensure test projects reference NUnit and NUnit3TestAdapter packages
-2. Run `dotnet test --list-tests` to verify tests are discovered
-3. Check that filter expressions use correct syntax (no typos in category names)
-
-### Allure Report Is Empty After Test Run
-
-1. Confirm `reports/allure-results/` contains `.json` files after the run
-2. Check that `config/allureConfig.json` is correctly linked in both `.csproj` files
-3. Re-run `allure generate` with `--clean` to force a fresh report
-
----
-
-## Related Files
-
-- [SetupGuide.md](./SetupGuide.md) — Prerequisites, credentials, browser config
-- [AutomationCodingStandards.md](./AutomationCodingStandards.md) — Code style and test naming conventions
-- [GitWorkflow.md](./GitWorkflow.md) — Branching and commit conventions
-- [FrameworkArchitecture.md](./FrameworkArchitecture.md) — High-level system design
-- [config/appsettings.json](../config/appsettings.json) — Browser and wait time defaults
-- [config/allureConfig.json](../config/allureConfig.json) — Allure configuration
+Why this section: Keep advanced engineering details separate from everyday execution flow.

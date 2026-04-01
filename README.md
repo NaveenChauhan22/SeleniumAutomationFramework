@@ -36,7 +36,7 @@ Application Under Test
 
 For full architecture details see:
 
-docs/FrameworkArchitecture.md
+[docs/FrameworkArchitecture.md](docs/FrameworkArchitecture.md)
 
 ---
 
@@ -105,7 +105,9 @@ Recommended VS Code extensions:
 
 Detailed setup instructions are available in:
 
-docs/FrameworkArchitecture.md
+- [docs/SetupGuide.md](docs/SetupGuide.md)
+- [docs/ExecutionGuide.md](docs/ExecutionGuide.md)
+- [docs/FrameworkArchitecture.md](docs/FrameworkArchitecture.md)
 
 ---
 
@@ -113,7 +115,11 @@ docs/FrameworkArchitecture.md
 
 From the project root:
 
-dotnet test
+`dotnet test`
+
+For step-by-step execution options (suite-wise run, smoke run, headless run, and Allure report):
+
+- [docs/ExecutionGuide.md](docs/ExecutionGuide.md)
 
 ---
 
@@ -129,7 +135,17 @@ Automation pipelines will:
 
 Pipeline configurations are located in:
 
-ci/ 
+- [ci/azure-pipelines.yml](ci/azure-pipelines.yml)
+
+---
+
+## Documentation Links
+
+- [docs/SetupGuide.md](docs/SetupGuide.md) - first-time setup for Windows and macOS
+- [docs/ExecutionGuide.md](docs/ExecutionGuide.md) - test execution and report generation
+- [docs/FrameworkArchitecture.md](docs/FrameworkArchitecture.md) - framework layers and technical design
+- [docs/AutomationCodingStandards.md](docs/AutomationCodingStandards.md) - coding standards and test design rules
+- [docs/GitWorkflow.md](docs/GitWorkflow.md) - branching, commits, and pull request workflow
 
 ---
 
