@@ -53,6 +53,25 @@ TEST_USER_PASSWORD=your_test_password
 
 Why this step: API and UI login tests require valid test account credentials.
 
+### Step 4: Quick Compatibility Checks (Recommended)
+
+Before running tests, validate these points:
+
+1. Shell type matches command block:
+  - Windows commands are for **PowerShell**.
+  - macOS commands are for **bash/zsh**.
+
+2. Allure major version:
+  - Run `allure --version`.
+  - Prefer **Allure CLI 2.x** for this framework (recommended 2.38.1).
+  - If 3.x is installed, follow rollback instructions in [SetupGuide.md](./SetupGuide.md#step-6-install-allure-cli-after-java).
+
+3. Java is available in PATH:
+  - Run `java -version`.
+
+4. Run from repository root:
+  - Folder containing `SeleniumAutomationFramework.sln`.
+
 ---
 
 ## 2. First Standard Run (Recommended)
@@ -100,6 +119,22 @@ allure generate ./reports/allure-results -o ./reports/allure-report --clean
 ```
 
 Why this step: It converts raw result files into a readable HTML dashboard.
+
+Important:
+- The command must start with `allure`.
+- Running only `generate ...` (without `allure`) causes `Unknown Syntax Error: Command not found`.
+
+Optional pre-check if report appears empty:
+
+**Windows (PowerShell):**
+```powershell
+Get-ChildItem .\reports\allure-results\*.json
+```
+
+**macOS (Terminal):**
+```bash
+ls ./reports/allure-results/*.json
+```
 
 ### Step 4: Open Allure Report
 
@@ -313,10 +348,16 @@ Why this step: Sequential mode is easier to debug when failures are hard to repr
 | Problem | What to Check |
 |---------|---------------|
 | `dotnet test` fails immediately | Run `dotnet restore` and `dotnet build` again |
+| `dotnet restore` fails behind proxy/firewall | Configure NuGet/proxy access and retry |
 | `allure` command not found | Install Allure CLI and verify with `allure --version` |
+| Allure works but output is inconsistent | Check `allure --version`; prefer CLI 2.x for this framework |
+| `Unknown Syntax Error: Command not found` for Allure | Use full command: `allure generate .\reports\allure-results -o .\reports\allure-report --clean` |
 | Tests fail with auth/credential error | Check `.env` values for `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` |
+| `.env` exists but credentials still missing | Ensure file is exactly `.env` (not `.env.txt`) in repository root |
 | Wrong browser opens | Check `TestSettings__Browser` in `.env` and active terminal variables |
+| Driver startup fails on first run | Ensure browser is installed and first-time driver download is allowed |
 | Allure report is empty | Verify files exist in `reports/allure-results` before running `allure generate` |
+| HTML opened but not Allure-looking report | Open `reports/allure-report/index.html` after generating from `reports/allure-results` |
 
 ---
 

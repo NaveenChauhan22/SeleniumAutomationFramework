@@ -88,6 +88,11 @@ Why this step: UI tests open a real browser to perform actions like login and na
 
 ### Step 6: Install Allure CLI (After Java)
 
+Version compatibility note:
+- This framework is validated with **Allure CLI 2.x**.
+- If your package manager installs **Allure 3.x** automatically, command behavior and report output can differ.
+- If you see report generation issues, use a stable 2.x version (recommended: **2.38.1**).
+
 **Windows option 1 (Scoop):**
 ```powershell
 scoop install allure
@@ -115,6 +120,68 @@ allure --version
 allure --version
 ```
 
+Expected:
+- Version should be in the 2.x line for this framework setup.
+
+If 3.x is installed, rollback to a compatible 2.x version:
+
+Option A: Try package manager rollback first.
+
+Windows (Scoop):
+```powershell
+scoop uninstall allure
+scoop install allure
+allure --version
+```
+
+Windows (Chocolatey):
+```powershell
+choco uninstall allure -y
+choco install allure --version=2.38.1 -y
+allure --version
+```
+
+macOS (Homebrew):
+```bash
+brew uninstall allure
+brew install allure
+allure --version
+```
+
+If package manager still installs 3.x, use manual install (guaranteed version control).
+
+Option B: Manual install of a specific version (recommended fallback).
+
+Windows (PowerShell):
+```powershell
+$ver = "2.38.1"
+scoop uninstall allure
+choco uninstall allure -y
+Invoke-WebRequest "https://github.com/allure-framework/allure2/releases/download/$ver/allure-$ver.zip" -OutFile "$env:TEMP\allure-$ver.zip"
+New-Item -ItemType Directory -Path "$env:USERPROFILE\tools" -Force | Out-Null
+Expand-Archive "$env:TEMP\allure-$ver.zip" -DestinationPath "$env:USERPROFILE\tools" -Force
+$allureBin = "$env:USERPROFILE\tools\allure-$ver\bin"
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$allureBin", "User")
+$env:Path = "$env:Path;$allureBin"
+allure --version
+Get-Command allure | Select-Object Source
+```
+
+macOS (bash/zsh):
+```bash
+VER=2.38.1
+brew uninstall allure
+curl -L -o /tmp/allure-$VER.tgz https://github.com/allure-framework/allure2/releases/download/$VER/allure-$VER.tgz
+mkdir -p $HOME/tools
+tar -xzf /tmp/allure-$VER.tgz -C $HOME/tools
+echo 'export PATH="$HOME/tools/allure-'"$VER"'/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+allure --version
+which allure
+```
+
+After rollback, continue with report commands from this guide.
+
 Why this step: Allure CLI generates and opens the HTML test report.
 
 ### Step 7: Install Useful VS Code Extensions (Recommended)
@@ -124,6 +191,34 @@ Why this step: Allure CLI generates and opens the HTML test report.
 - .NET Test Explorer
 
 Why this step: These extensions make test execution and troubleshooting easier for beginners.
+
+### Step 8: First-Time Compatibility Check (Highly Recommended)
+
+Before moving to repository setup, validate these compatibility points:
+
+1. Use the correct shell for commands:
+  - Windows commands in this guide are for **PowerShell**.
+  - macOS commands are for **Terminal (bash/zsh)**.
+
+2. Confirm Allure CLI major version:
+  - Run `allure --version`
+  - Prefer **2.x** for this framework (recommended 2.38.1).
+
+3. Confirm Java is installed and visible in PATH:
+  - Run `java -version`
+  - If Allure is installed but fails at runtime, Java path is usually the cause.
+
+4. Ensure internet/proxy access is available for first run:
+  - `dotnet restore` needs NuGet access.
+  - UI driver setup needs browser-driver downloads on first execution.
+
+5. Confirm `.env` filename is exact:
+  - File must be named `.env` (not `.env.txt`).
+  - This is a common Windows first-time issue due to hidden extensions.
+
+6. Run commands from solution root:
+  - Folder containing `SeleniumAutomationFramework.sln`.
+  - Running from another folder can make report and config paths look broken.
 
 ---
 
@@ -340,6 +435,40 @@ allure generate ./reports/allure-results -o ./reports/allure-report --clean
 
 Why this step: This converts raw test result files into a readable report.
 
+Important:
+- The command must start with `allure`.
+- Running only `generate ...` or only a folder path will fail with `Unknown Syntax Error: Command not found`.
+
+### Step 2.1: Verify Allure Results Are Actually Created
+
+If report output looks generic or empty, first confirm result files exist.
+
+**Windows (PowerShell):**
+```powershell
+Get-ChildItem .\reports\allure-results\*.json
+```
+
+**macOS (Terminal):**
+```bash
+ls ./reports/allure-results/*.json
+```
+
+Expected: multiple `*-result.json` files.
+
+If empty, re-run tests fully and let execution complete:
+
+**Windows (PowerShell):**
+```powershell
+dotnet test .\SeleniumAutomationFramework.sln
+```
+
+**macOS (Terminal):**
+```bash
+dotnet test ./SeleniumAutomationFramework.sln
+```
+
+Then run generate again.
+
 ### Step 3: Open Allure Report
 
 **Windows (PowerShell):**
@@ -354,6 +483,9 @@ allure open ./reports/allure-report
 
 Why this step: You can quickly review pass/fail details and evidence such as screenshots.
 
+Fallback option:
+- If `allure open` does not launch, open `reports/allure-report/index.html` directly in browser.
+
 ---
 
 ## 6. Quick Troubleshooting
@@ -361,10 +493,20 @@ Why this step: You can quickly review pass/fail details and evidence such as scr
 | Problem | What to Check |
 |---------|---------------|
 | `dotnet` command not found | Reinstall .NET SDK and reopen terminal |
+| `dotnet restore` fails in corporate network | Configure NuGet proxy/access and retry restore |
 | `allure` command not found | Install Allure CLI, then verify PATH |
+| Allure installed but report behavior is inconsistent | Check `allure --version`. If it is 3.x, switch to 2.x (recommended 2.38.1) for this framework |
+| Need to force specific Allure version | Use the rollback steps in Step 6 and verify with `allure --version` and command source (`Get-Command allure` or `which allure`) |
+| `Unknown Syntax Error: Command not found` during report generation | You likely ran `generate ...` without the `allure` prefix. Use: `allure generate .\reports\allure-results -o .\reports\allure-report --clean` |
+| `allure-results` folder is empty | Ensure tests were executed to completion from solution root. Then validate with `Get-ChildItem .\reports\allure-results\*.json` |
+| HTML report opens but looks generic | This framework also produces a separate execution HTML report. To view Allure, generate from `reports/allure-results` and open `reports/allure-report/index.html` |
 | `java` command not found | Install Java first, then reinstall/verify Allure |
+| Allure installed but fails to run | Verify `java -version` and ensure Java is on PATH |
 | Login test fails with missing credentials | Confirm `.env` exists and has `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` |
+| Credentials still not loaded though `.env` exists | Ensure file is named exactly `.env` and saved in repository root |
 | Wrong browser opens | Check `TestSettings__Browser` in `.env` and terminal overrides |
+| Browser/driver startup fails on first run | Ensure browser is installed and internet access allows first-time driver download |
+| Command works on one machine but fails on another | Verify shell type (PowerShell vs bash/zsh) and use the matching command block from this guide |
 
 ---
 
