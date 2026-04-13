@@ -225,6 +225,26 @@ public abstract class APITestBase : AllureTestBase
         }
     }
 
+    private void RebindApiDependenciesWithExecutionLogger()
+    {
+        Assert.That(ApiData, Is.Not.Null, "ApiData should be initialized before rebinding API dependencies.");
+        Assert.That(SharedApiClient, Is.Not.Null, "SharedApiClient should be initialized before rebinding API dependencies.");
+        Assert.That(Logger, Is.Not.Null, "Logger should be initialized before rebinding API dependencies.");
+
+        // Recreate logger-dependent API helpers per test so request/response entries
+        // are written to the current execution log file without changing API behavior.
+        SharedAuthClient = new AuthClient(
+            SharedApiClient,
+            Logger,
+            ApiData.Endpoints.Auth.Login,
+            ApiData.Assertions.Auth.TokenJsonPath,
+            defaultTokenTtlSeconds: 3600);
+
+        AuthApi = new AuthAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Auth);
+        EventsApi = new EventsAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Events);
+        BookingsApi = new BookingsAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Bookings);
+    }
+
     private ApiSuiteData LoadApiTestData(ApiAuthData authData)
     {
         Assert.That(authData, Is.Not.Null, "ApiAuthData cannot be null. Ensure apiAuth section exists in loginData.json.");
@@ -511,7 +531,9 @@ public abstract class APITestBase : AllureTestBase
 
         _executionLoggerHandle = executionLogger as IDisposable;
 
-        Logger.Debug("[API] Starting test {TestName}", TestContext.CurrentContext.Test.Name);
+        RebindApiDependenciesWithExecutionLogger();
+
+        Logger.Information("[API] Starting test {TestName}", TestContext.CurrentContext.Test.Name);
         RuntimeContext.TestType = "API";
         RuntimeContext.BrowserName = "N/A";
         
@@ -541,7 +563,7 @@ public abstract class APITestBase : AllureTestBase
         
         // Attach any collected error information to Allure report
         CompleteAllureTest();
-        Logger.Debug("[API] Completing test {TestName} with status {Status}", TestContext.CurrentContext.Test.Name, outcome);
+        Logger.Information("[API] Completing test {TestName} with status {Status}", TestContext.CurrentContext.Test.Name, outcome);
 
         var fullClassName = TestContext.CurrentContext.Test.ClassName ?? string.Empty;
         var shortClassName = fullClassName.Contains('.') ? fullClassName[(fullClassName.LastIndexOf('.') + 1)..] : fullClassName;
@@ -567,7 +589,7 @@ public abstract class APITestBase : AllureTestBase
             Logger.Debug("[API] Test {TestName} completed with failure status", TestContext.CurrentContext.Test.Name);
         }
 
-        Logger.Debug("[API] Test {TestName} finished in {DurationMs} ms",
+        Logger.Information("[API] Test {TestName} finished in {DurationMs} ms",
             TestContext.CurrentContext.Test.Name,
             _executionTimer.Elapsed.TotalMilliseconds);
 
