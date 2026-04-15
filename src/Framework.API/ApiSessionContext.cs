@@ -8,7 +8,8 @@ namespace Framework.API;
 public sealed record TokenState(
     string AccessToken,
     DateTimeOffset ExpiresAt,
-    string? RefreshToken = null)
+    string? RefreshToken = null,
+    bool AllowRefresh = true)
 {
     /// <summary>
     /// Returns true if the token is expired or will expire within 30 seconds (grace period).

@@ -8,8 +8,9 @@ namespace UITests.Pages;
 /// Abstract base class for all Page Object Model (POM) pages.
 /// Holds the shared <see cref="IWebDriver"/> and <see cref="WaitHelper"/> instances and
 /// provides reusable low-level helpers — <see cref="Click"/> (with retry and JS-click fallback),
-/// <see cref="EnterText"/>, <see cref="Text"/>, <see cref="IsElementDisplayed"/>, and
-/// <see cref="SelectByText"/> — that all concrete page classes inherit.
+/// <see cref="EnterText"/>, <see cref="Clear"/>, <see cref="Text"/>, <see cref="Attribute"/>,
+/// <see cref="IsElementDisplayed"/>, <see cref="IsElementEnabled"/>, <see cref="IsElementSelected"/>,
+/// and dropdown helpers such as <see cref="SelectByText"/> — that all concrete page classes inherit.
 /// </summary>
 public abstract class BasePage
 {
@@ -92,6 +93,14 @@ public abstract class BasePage
         element.SendKeys(value);
     }
 
+    protected void Clear(By locator)
+    {
+        if (locator == null)
+            throw new ArgumentNullException(nameof(locator));
+
+        Wait.WaitForElementVisible(locator).Clear();
+    }
+
     protected string Text(By locator)
     {
         if (locator == null)
@@ -99,11 +108,45 @@ public abstract class BasePage
         return Wait.WaitForElementVisible(locator).Text ?? string.Empty;
     }
 
+    protected string Attribute(By locator, string attributeName)
+    {
+        if (locator == null)
+            throw new ArgumentNullException(nameof(locator));
+        if (string.IsNullOrWhiteSpace(attributeName))
+            throw new ArgumentException("Attribute name cannot be null or whitespace", nameof(attributeName));
+
+        return Wait.WaitForElementVisible(locator).GetAttribute(attributeName) ?? string.Empty;
+    }
+
     protected bool IsElementDisplayed(By locator)
     {
         try
         {
             return Wait.WaitForElementVisible(locator).Displayed;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    protected bool IsElementEnabled(By locator)
+    {
+        try
+        {
+            return Wait.WaitForElementVisible(locator).Enabled;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    protected bool IsElementSelected(By locator)
+    {
+        try
+        {
+            return Wait.WaitForElementVisible(locator).Selected;
         }
         catch
         {
@@ -121,5 +164,29 @@ public abstract class BasePage
         var element = Wait.WaitForElementVisible(locator);
         var selectElement = new SelectElement(element);
         selectElement.SelectByText(text);
+    }
+
+    protected void SelectByValue(By locator, string value)
+    {
+        if (locator == null)
+            throw new ArgumentNullException(nameof(locator));
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Value cannot be null or whitespace", nameof(value));
+
+        var element = Wait.WaitForElementVisible(locator);
+        var selectElement = new SelectElement(element);
+        selectElement.SelectByValue(value);
+    }
+
+    protected void SelectByIndex(By locator, int index)
+    {
+        if (locator == null)
+            throw new ArgumentNullException(nameof(locator));
+        if (index < 0)
+            throw new ArgumentOutOfRangeException(nameof(index), "Index cannot be negative");
+
+        var element = Wait.WaitForElementVisible(locator);
+        var selectElement = new SelectElement(element);
+        selectElement.SelectByIndex(index);
     }
 }

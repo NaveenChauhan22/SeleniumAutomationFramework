@@ -28,18 +28,35 @@ public abstract class AllureTestBase
         try
         {
             var duration = DateTimeOffset.UtcNow - (_testStart.Value ?? DateTimeOffset.UtcNow);
+            var outcome = TestContext.CurrentContext.Result.Outcome.Status;
+            var outcomeMessage = TestContext.CurrentContext.Result.Message;
 
             AllureApi.AddTestParameter("Browser", RuntimeContext.BrowserName);
             AllureApi.AddTestParameter("TestType", RuntimeContext.TestType);
             AllureApi.AddTestParameter("Duration", $"{duration.TotalSeconds:F2}s");
+            AllureApi.AddTestParameter("Outcome", outcome.ToString());
 
-            if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
+            if (outcome != TestStatus.Passed && !string.IsNullOrWhiteSpace(outcomeMessage))
+            {
+                ReportHelper.AttachContent("Outcome Details", "text/plain", outcomeMessage, "txt");
+            }
+
+            if (outcome == TestStatus.Failed)
             {
                 foreach (var attachment in failureAttachments ?? [])
                 {
                     Attach(attachment);
                 }
 
+                var apiExchange = RuntimeContext.GetLastApiExchange();
+                if (apiExchange is not null)
+                {
+                    ReportHelper.AttachContent("API Request", "text/plain", apiExchange.Request, "txt");
+                    ReportHelper.AttachContent("API Response", "text/plain", apiExchange.Response, "txt");
+                }
+            }
+            else if (outcome != TestStatus.Passed)
+            {
                 var apiExchange = RuntimeContext.GetLastApiExchange();
                 if (apiExchange is not null)
                 {

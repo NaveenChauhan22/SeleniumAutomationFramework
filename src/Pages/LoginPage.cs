@@ -94,7 +94,7 @@ public class LoginPage : BasePage
     /// </summary>
     public LoginPage ClearEmail()
     {
-        Wait.WaitForElementVisible(_emailInput).Clear();
+        Clear(_emailInput);
         return this;
     }
 
@@ -103,7 +103,7 @@ public class LoginPage : BasePage
     /// </summary>
     public LoginPage ClearPassword()
     {
-        Wait.WaitForElementVisible(_passwordInput).Clear();
+        Clear(_passwordInput);
         return this;
     }
 
@@ -144,10 +144,7 @@ public class LoginPage : BasePage
     {
         try
         {
-            var el = Wait.WaitForElementVisible(_emailInput);
-            if (el == null) return string.Empty;
-
-            return el.GetAttribute("value") ?? string.Empty;
+            return Attribute(_emailInput, "value");
         }
         catch (Exception)
         {

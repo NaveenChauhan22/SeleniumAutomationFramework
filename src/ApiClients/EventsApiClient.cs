@@ -1,13 +1,13 @@
 using Framework.API;
+using APITests;
 
-namespace APITests.APIPages;
+namespace Framework.API.Clients;
 
-public sealed class EventsAPIPage(
+public sealed class EventsApiClient(
     APIClient apiClient,
     Serilog.ILogger logger,
-    AuthClient authClient,
     ApiSuiteData.EndpointData.EventEndpointData endpoints)
-    : BaseAPIPage(apiClient, logger, authClient)
+    : BaseApiClient(apiClient, logger)
 {
     private readonly ApiSuiteData.EndpointData.EventEndpointData _endpoints = endpoints ?? throw new ArgumentNullException(nameof(endpoints), "Event endpoint data cannot be null.");
 
