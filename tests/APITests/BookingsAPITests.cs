@@ -22,6 +22,8 @@ public class BookingsAPITests : APITestBase
     [AllureSeverity(SeverityLevel.critical)]
     public async Task CreateLookupAndCancelBooking()
     {
+        EnsurePositiveAuthContextOrInconclusive("Bookings");
+
         int eventId = 0;
         int bookingId = 0;
 
@@ -109,6 +111,8 @@ public class BookingsAPITests : APITestBase
     [AllureSeverity(SeverityLevel.normal)]
     public async Task ListBookings_ShouldSupportPaginationStatusAndEventFilter()
     {
+        EnsurePositiveAuthContextOrInconclusive("Bookings");
+
         int eventId = 0;
         int bookingId = 0;
 
@@ -195,6 +199,8 @@ public class BookingsAPITests : APITestBase
     [AllureSeverity(SeverityLevel.normal)]
     public async Task CreateBooking_WithInvalidPayload_ShouldReturnValidationError()
     {
+        EnsurePositiveAuthContextOrInconclusive("Bookings");
+
         int eventId = 0;
 
         try

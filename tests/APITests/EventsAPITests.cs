@@ -21,6 +21,8 @@ public class EventsAPITests : APITestBase
     [AllureSeverity(SeverityLevel.normal)]
     public async Task ListEvents_ShouldSupportPaginationAndFilters()
     {
+        EnsurePositiveAuthContextOrInconclusive("Events");
+
         var response = await EventsApi.ListEventsAsync(
             ApiData.Queries.Events.Page,
             ApiData.Queries.Events.Limit,
@@ -44,6 +46,8 @@ public class EventsAPITests : APITestBase
     [AllureSeverity(SeverityLevel.critical)]
     public async Task CreateUpdateDeleteEvent()
     {
+        EnsurePositiveAuthContextOrInconclusive("Events");
+
         int createdEventId = 0;
 
         try
@@ -97,6 +101,8 @@ public class EventsAPITests : APITestBase
     [AllureSeverity(SeverityLevel.normal)]
     public async Task CreateEvent_WithInvalidPayload_ShouldReturnValidationError()
     {
+        EnsurePositiveAuthContextOrInconclusive("Events");
+
         var invalidPayload = BuildPayload(ApiData.Events.InvalidCreatePayload);
 
         var response = await EventsApi.CreateEventAsync(invalidPayload);

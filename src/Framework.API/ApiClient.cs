@@ -18,6 +18,9 @@ public class APIClient : IDisposable
 
     public bool ShowBearerToken { get; set; } = true;
 
+    /// <summary>Serilog logger injected per-test by the test base for console/file output.</summary>
+    public Serilog.ILogger? SerilogLogger { get; set; }
+
     public APIClient(HttpClient httpClient, ILogger<APIClient>? logger = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
@@ -37,6 +40,7 @@ public class APIClient : IDisposable
         }
 
         _logger.LogInformation("Sending API request: {Method} {Url}", request.Method, request.RequestUri);
+        SerilogLogger?.Information("[API] >> {Method} {Url}", request.Method, request.RequestUri);
         HttpResponseMessage response;
         try
         {
@@ -59,6 +63,7 @@ public class APIClient : IDisposable
         }
 
         _logger.LogInformation("Received API response: {StatusCode}", (int)response.StatusCode);
+        SerilogLogger?.Information("[API] << {StatusCode} {ReasonPhrase}", (int)response.StatusCode, response.ReasonPhrase);
         var requestDump = await FormatRequestAsync(request, cancellationToken);
         try
         {

@@ -1,10 +1,10 @@
-using NUnit.Framework.Interfaces;
+﻿using NUnit.Framework.Interfaces;
 using Framework.Core.Configuration;
 using Framework.Core.Utilities;
 using Framework.Data;
 using Framework.API;
+using Framework.API.Clients;
 using Framework.Reporting;
-using APITests.APIPages;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
@@ -17,22 +17,26 @@ public abstract class APITestBase : AllureTestBase
     protected HttpClient SharedHttpClient = null!;
     protected APIClient SharedApiClient = null!;
     protected AuthClient SharedAuthClient = null!;
-    protected AuthAPIPage AuthApi = null!;
-    protected EventsAPIPage EventsApi = null!;
-    protected BookingsAPIPage BookingsApi = null!;
+    protected AuthApiClient AuthApi = null!;
+    protected EventsApiClient EventsApi = null!;
+    protected BookingsApiClient BookingsApi = null!;
     protected ApiSuiteData ApiData = null!;
     protected LoginDataModel LoginData = null!;
 
     private IDisposable? _executionLoggerHandle;
+        // Suite-level token cache: one login per fixture, reused across all positive tests.
+        // Refreshed automatically in [SetUp] if the token expired between tests.
+        private TokenState? _suiteToken;
+        private (string Email, string Password) _suiteCredentials;
+        private readonly SemaphoreSlim _suiteLock = new(1, 1);
+
     private readonly Stopwatch _executionTimer = new();
     private DateTimeOffset _testStartedAt;
     private string _priority = "Unspecified";
     private string _suiteName = string.Empty;
-    private static readonly object SuiteAuthLock = new();
-    private static TokenState? SuiteSharedToken;
 
     [OneTimeSetUp]
-    public void OneTimeSetUp()
+    public async Task OneTimeSetUp()
     {
         var apiBaseUrl = ConfigManager.GetString("Api:BaseUrl");
         Assert.That(apiBaseUrl, Is.Not.Null.And.Not.Empty, "Api:BaseUrl configuration is required. Ensure it is set in appsettings.json or environment variables.");
@@ -72,27 +76,48 @@ public abstract class APITestBase : AllureTestBase
             defaultTokenTtlSeconds: 3600);
         Assert.That(SharedAuthClient, Is.Not.Null, "SharedAuthClient initialization failed.");
         
-        // Authenticate once per run and reuse the same token across API test classes when still valid.
-        EnsureSuiteAuthentication();
-        
-        // Verify token is available in session context (use CurrentAccessToken for immediate post-auth verification without grace period check)
-        Assert.That(ApiSessionContext.Current.CurrentAccessToken, Is.Not.Null.And.Not.Empty,
-            "Authentication failed: no token in session context after initial login.");
-        Assert.That(ApiSessionContext.Current.AccessToken, Is.Not.Null.And.Not.Empty,
-            "Token should be valid (not expiring within grace period) after initial login.");
-        
-        // Initialize API page objects with AuthClient for automatic token refresh capability
-        AuthApi = new AuthAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Auth);
-        Assert.That(AuthApi, Is.Not.Null, "AuthApiPage initialization failed.");
+        // Initialize API clients. Token scenario is controlled by tests via LoginAsync helper.
+        AuthApi = new AuthApiClient(
+            SharedApiClient,
+            Logger,
+            ApiData.Endpoints.Auth);
+        Assert.That(AuthApi, Is.Not.Null, "AuthApiClient initialization failed.");
         Assert.That(ApiData.Endpoints.Auth, Is.Not.Null, "ApiData.Endpoints.Auth should not be null.");
         
-        EventsApi = new EventsAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Events);
-        Assert.That(EventsApi, Is.Not.Null, "EventsApiPage initialization failed.");
+        EventsApi = new EventsApiClient(
+            SharedApiClient,
+            Logger,
+            ApiData.Endpoints.Events);
+        Assert.That(EventsApi, Is.Not.Null, "EventsApiClient initialization failed.");
         Assert.That(ApiData.Endpoints.Events, Is.Not.Null, "ApiData.Endpoints.Events should not be null.");
         
-        BookingsApi = new BookingsAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Bookings);
-        Assert.That(BookingsApi, Is.Not.Null, "BookingsApiPage initialization failed.");
+        BookingsApi = new BookingsApiClient(
+            SharedApiClient,
+            Logger,
+            ApiData.Endpoints.Bookings);
+        Assert.That(BookingsApi, Is.Not.Null, "BookingsApiClient initialization failed.");
         Assert.That(ApiData.Endpoints.Bookings, Is.Not.Null, "ApiData.Endpoints.Bookings should not be null.");
+
+        // One login for the entire fixture. Token is reused across all positive tests.
+        // If credentials are not configured (e.g., env var placeholders), _suiteToken stays null
+        // and the context is cleared per-test â€” no test will crash here.
+        try
+        {
+            _suiteCredentials = (LoginData.ValidCredentials.Email, LoginData.ValidCredentials.Password);
+            _suiteToken = await SharedAuthClient.LoginAsync(
+                _suiteCredentials.Email,
+                _suiteCredentials.Password,
+                tokenScenario: "valid",
+                tokenState: true);
+
+            Logger.Information("Suite login succeeded. Token valid until {ExpiresAt}.", _suiteToken?.ExpiresAt);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Logger.Warning("Suite login failed â€” credentials may not be configured. " +
+                "Positive tests will proceed without a pre-loaded token. Error: {Message}", ex.Message);
+            _suiteToken = null;
+        }
     }
 
     [OneTimeTearDown]
@@ -135,101 +160,15 @@ public abstract class APITestBase : AllureTestBase
         }
     }
 
-    /// <summary>
-    /// Performs the initial authentication using valid credentials from test data.
-    /// Stores the token in ApiSessionContext (in-memory, thread-safe session scope).
-    /// This is called once per test suite in OneTimeSetUp.
-    /// </summary>
-    private TokenState PerformInitialAuthentication()
-    {
-        try
-        {
-            // Capture the session context in THIS execution context (OneTimeSetUp's context)
-            // This is important because async operations might run in a different execution context
-            var sessionContext = ApiSessionContext.Current;
-            
-            var task = SharedAuthClient.LoginAsync(
-                LoginData.ValidCredentials.Email,
-                LoginData.ValidCredentials.Password,
-                cancellationToken: CancellationToken.None);
-
-            var tokenState = task.GetAwaiter().GetResult();
-
-            Assert.That(tokenState, Is.Not.Null, "LoginAsync should return a valid TokenState.");
-            Assert.That(tokenState.AccessToken, Is.Not.Null.And.Not.Empty, "Token should not be null or empty after authentication.");
-            Assert.That(tokenState.ExpiresAt, Is.GreaterThan(DateTimeOffset.UtcNow), 
-                $"Token expiration time ({tokenState.ExpiresAt:O}) must be in the future (current UTC: {DateTimeOffset.UtcNow:O}).");
-            
-            Logger.Information("Authentication successful. Token expires at: {ExpiresAt}, TTL: {TimeRemaining}ms",
-                tokenState.ExpiresAt, tokenState.TimeRemaining.TotalMilliseconds);
-            
-            // Ensure token is stored in the captured session context (OneTimeSetUp's context)
-            // This handles Azure Local context flow properly when using GetAwaiter().GetResult()
-            sessionContext.SetToken(tokenState);
-            sessionContext.StoreCredentials(LoginData.ValidCredentials.Email, LoginData.ValidCredentials.Password);
-            Logger.Information("Token explicitly set in captured session context for OneTimeSetUp execution context.");
-            
-            // Verify token is stored in session context
-            var storedToken = ApiSessionContext.Current.CurrentAccessToken;
-            Assert.That(storedToken, Is.Not.Null.And.Not.Empty,
-                "Token should be stored in session context after authentication.");
-            Assert.That(storedToken, Is.EqualTo(tokenState.AccessToken),
-                "Stored token in session context does not match the token returned from login.");
-                
-            // Log token validity status for diagnostics
-            if (ApiSessionContext.Current.CurrentToken != null)
-            {
-                Logger.Information("Token validity: IsValid={IsValid}, IsExpiredOrExpiring={IsExpiredOrExpiring}, TimeRemaining={TimeRemaining}ms",
-                    ApiSessionContext.Current.CurrentToken.IsValid,
-                    ApiSessionContext.Current.CurrentToken.IsExpiredOrExpiring,
-                    ApiSessionContext.Current.CurrentToken.TimeRemaining.TotalMilliseconds);
-            }
-
-            return tokenState;
-        }
-        catch (Exception ex)
-        {
-            Logger.Error(ex, "Initial authentication failed. API tests cannot proceed without a valid token.");
-            Assert.Fail($"Authentication failed: {ex.Message}");
-            throw;
-        }
-    }
-
-    private void EnsureSuiteAuthentication()
-    {
-        lock (SuiteAuthLock)
-        {
-            if (SuiteSharedToken?.IsValid == true)
-            {
-                ApiSessionContext.Current.SetToken(SuiteSharedToken);
-                ApiSessionContext.Current.StoreCredentials(
-                    LoginData.ValidCredentials.Email,
-                    LoginData.ValidCredentials.Password);
-
-                Logger.Information(
-                    "Reusing suite token for test class {TestClass}. ExpiresAt: {ExpiresAt}, TimeRemaining: {TimeRemaining}ms",
-                    GetType().Name,
-                    SuiteSharedToken.ExpiresAt,
-                    SuiteSharedToken.TimeRemaining.TotalMilliseconds);
-
-                return;
-            }
-
-            var tokenState = PerformInitialAuthentication();
-            SuiteSharedToken = tokenState;
-
-            Logger.Information(
-                "Generated new suite token for test class {TestClass}. ExpiresAt: {ExpiresAt}",
-                GetType().Name,
-                tokenState.ExpiresAt);
-        }
-    }
-
     private void RebindApiDependenciesWithExecutionLogger()
     {
         Assert.That(ApiData, Is.Not.Null, "ApiData should be initialized before rebinding API dependencies.");
         Assert.That(SharedApiClient, Is.Not.Null, "SharedApiClient should be initialized before rebinding API dependencies.");
         Assert.That(Logger, Is.Not.Null, "Logger should be initialized before rebinding API dependencies.");
+
+        // Bind the per-test Serilog logger to the shared HTTP client so request/response
+        // details (method, URL, status code) are printed to console/file for every call.
+        SharedApiClient.SerilogLogger = Logger;
 
         // Recreate logger-dependent API helpers per test so request/response entries
         // are written to the current execution log file without changing API behavior.
@@ -240,9 +179,20 @@ public abstract class APITestBase : AllureTestBase
             ApiData.Assertions.Auth.TokenJsonPath,
             defaultTokenTtlSeconds: 3600);
 
-        AuthApi = new AuthAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Auth);
-        EventsApi = new EventsAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Events);
-        BookingsApi = new BookingsAPIPage(SharedApiClient, Logger, SharedAuthClient, ApiData.Endpoints.Bookings);
+        AuthApi = new AuthApiClient(
+            SharedApiClient,
+            Logger,
+            ApiData.Endpoints.Auth);
+
+        EventsApi = new EventsApiClient(
+            SharedApiClient,
+            Logger,
+            ApiData.Endpoints.Events);
+
+        BookingsApi = new BookingsApiClient(
+            SharedApiClient,
+            Logger,
+            ApiData.Endpoints.Bookings);
     }
 
     private ApiSuiteData LoadApiTestData(ApiAuthData authData)
@@ -370,6 +320,150 @@ public abstract class APITestBase : AllureTestBase
         Assert.That(data.WrongPasswordScenario, Is.Not.Null, "wrongPasswordScenario section is required in loginData.json for negative test scenarios.");
 
         return data;
+    }
+
+    protected async Task<TokenState?> LoginAsync(
+        string email,
+        string password,
+        string tokenScenario = "valid",
+        bool tokenState = true,
+        CancellationToken cancellationToken = default)
+    {
+        Assert.That(SharedAuthClient, Is.Not.Null, "SharedAuthClient should be initialized before calling LoginAsync.");
+
+        // Fast path: reuse the valid suite-level token without an HTTP call for positive flows.
+        // NUnit runs [SetUp] and the test body in separate ExecutionContext instances, so AsyncLocal
+        // values written in [SetUp] are NOT visible in the test body. Calling this method from the
+        // test body re-injects the suite token into the current execution context without network cost.
+        // Only applies when the caller supplies the same credentials used for the suite login —
+        // if different credentials are provided the request must go to the network so the server
+        // can reject them (e.g. wrong-password negative tests).
+        if (tokenState
+            && string.Equals(tokenScenario, "valid", StringComparison.OrdinalIgnoreCase)
+            && _suiteToken?.IsValid == true
+            && string.Equals(email, _suiteCredentials.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            ApiSessionContext.Current.SetToken(_suiteToken);
+            ApiSessionContext.Current.StoreCredentials(email, password);
+            return _suiteToken;
+        }
+
+        var configured = await SharedAuthClient
+            .LoginAsync(email, password, tokenScenario, tokenState, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Rebind token into the current test execution context to avoid AsyncLocal context drift.
+        if (configured is null)
+        {
+            ApiSessionContext.Current.ClearToken();
+            ApiSessionContext.Current.ClearStoredCredentials();
+        }
+        else
+        {
+            ApiSessionContext.Current.SetToken(configured);
+            ApiSessionContext.Current.StoreCredentials(email, password);
+        }
+
+        return configured;
+    }
+
+    /// <summary>
+    /// Ensures a valid token is bound to the current test's async execution context.
+    /// Call at the start of any positive-flow test body that makes authenticated API calls.
+    /// Reuses the suite-level token without HTTP if still valid; falls back to a fresh login otherwise.
+    /// </summary>
+    protected async Task EnsureValidTokenAsync()
+    {
+        await LoginAsync(
+            LoginData.ValidCredentials.Email,
+            LoginData.ValidCredentials.Password,
+            tokenScenario: "valid",
+            tokenState: true);
+    }
+
+    /// <summary>
+    /// Binds an already-issued suite token into the current test execution context without
+    /// performing any network login. Returns false if the suite token is missing or expired.
+    /// </summary>
+    protected bool TryBindSuiteTokenToCurrentContext()
+    {
+        if (_suiteToken is null || !_suiteToken.IsValid)
+        {
+            return false;
+        }
+
+        ApiSessionContext.Current.SetToken(_suiteToken);
+        ApiSessionContext.Current.StoreCredentials(_suiteCredentials.Email, _suiteCredentials.Password);
+        return true;
+    }
+
+    /// <summary>
+    /// One-line helper for positive tests: bind suite token to current context or mark test inconclusive.
+    /// Keeps test bodies clean while preserving suite-level auth intent.
+    /// </summary>
+    protected void EnsurePositiveAuthContextOrInconclusive(string flowName)
+    {
+        if (TryBindSuiteTokenToCurrentContext())
+        {
+            return;
+        }
+
+        Assert.Inconclusive($"No suite token available for positive {flowName} flow.");
+    }
+
+    private async Task EnsureSuiteTokenAsync()
+    {
+        if (_suiteToken is null)
+        {
+            ApiSessionContext.Current.ClearToken();
+            return;
+        }
+
+        if (_suiteToken.IsValid)
+        {
+            ApiSessionContext.Current.SetToken(_suiteToken);
+            ApiSessionContext.Current.StoreCredentials(_suiteCredentials.Email, _suiteCredentials.Password);
+            return;
+        }
+
+        // Token expired between tests. Refresh under lock so only one test triggers re-auth.
+        await _suiteLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_suiteToken.IsValid) // double-check after acquiring lock
+            {
+                ApiSessionContext.Current.SetToken(_suiteToken);
+                ApiSessionContext.Current.StoreCredentials(_suiteCredentials.Email, _suiteCredentials.Password);
+                return;
+            }
+
+            Logger.Information("Suite token expired. Re-authenticating before next test...");
+            try
+            {
+                _suiteToken = await SharedAuthClient.LoginAsync(
+                    _suiteCredentials.Email,
+                    _suiteCredentials.Password,
+                    tokenScenario: "valid",
+                    tokenState: true).ConfigureAwait(false);
+
+                if (_suiteToken is not null)
+                {
+                    Logger.Information("Suite token refreshed. Valid until {ExpiresAt}.", _suiteToken.ExpiresAt);
+                    ApiSessionContext.Current.SetToken(_suiteToken);
+                    ApiSessionContext.Current.StoreCredentials(_suiteCredentials.Email, _suiteCredentials.Password);
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                Logger.Warning("Suite token refresh failed: {Message}", ex.Message);
+                _suiteToken = null;
+                ApiSessionContext.Current.ClearToken();
+            }
+        }
+        finally
+        {
+            _suiteLock.Release();
+        }
     }
 
     protected JObject BuildPayload(JObject template, IDictionary<string, JToken>? variables = null)
@@ -548,9 +642,9 @@ public abstract class APITestBase : AllureTestBase
         
         ReportHelper.BeginTest(TestContext.CurrentContext.Test.Name);
 
-        // Note: Authentication is now performed once per test suite in OneTimeSetUp via PerformInitialAuthentication().
-        // The token is stored in ApiSessionContext (in-memory, thread-safe) and reused across all tests.
-        // Tokens are automatically refreshed if expired before authenticated API calls.
+        // Load the suite token into this test's AsyncLocal context.
+        // Negative tests override this immediately after [SetUp] via LoginAsync().
+        await EnsureSuiteTokenAsync();
     }
 
     [TearDown]

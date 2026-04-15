@@ -1,22 +1,10 @@
 using Newtonsoft.Json.Linq;
-using System;
 
 namespace Framework.API;
 
 /// <summary>
-/// Client for API authentication operations used by the test framework.
-/// Works in conjunction with ApiSessionContext to manage token lifecycle.
-/// 
-/// Thread safety:
-/// - Uses ApiSessionContext's refresh lock to coordinate token updates across parallel tests
-/// - Safe for concurrent calls in NUnit parallel test execution
-/// 
-/// Responsibilities:
-/// - Perform login API call and extract token from response
-/// - Re-authenticate using stored credentials when the current token expires
-/// - Perform token refresh API calls only when the backend explicitly supports them
-/// - Calculate token expiration time
-/// - Store tokens in ApiSessionContext (in-memory only)
+/// Basic auth/session utility for test-driven token scenarios.
+/// Tests choose the token scenario explicitly: valid, expired, invalid, or missing.
 /// </summary>
 public sealed class AuthClient
 {
@@ -26,14 +14,6 @@ public sealed class AuthClient
     private readonly string _tokenJsonPath;
     private readonly int _defaultTokenTtlSeconds;
 
-    /// <summary>
-    /// Initializes a new instance of the AuthClient.
-    /// </summary>
-    /// <param name="httpClient">The HTTP client to use for API calls.</param>
-    /// <param name="logger">Logger for operational visibility.</param>
-    /// <param name="loginEndpoint">The API endpoint for login (e.g., "/api/auth/login").</param>
-    /// <param name="tokenJsonPath">JSONPath to extract token from login response (e.g., "$.token").</param>
-    /// <param name="defaultTokenTtlSeconds">Default token TTL if not provided by server. Default: 3600 (1 hour).</param>
     public AuthClient(
         APIClient httpClient,
         Serilog.ILogger logger,
@@ -41,8 +21,8 @@ public sealed class AuthClient
         string tokenJsonPath,
         int defaultTokenTtlSeconds = 3600)
     {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient), "APIClient cannot be null.");
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger), "Logger cannot be null.");
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loginEndpoint = !string.IsNullOrWhiteSpace(loginEndpoint)
             ? loginEndpoint
             : throw new ArgumentException("Login endpoint cannot be null or empty.", nameof(loginEndpoint));
@@ -55,19 +35,16 @@ public sealed class AuthClient
     }
 
     /// <summary>
-    /// Authenticates using email and password credentials.
-    /// Extracts the token from the response and stores it in ApiSessionContext.
+    /// Configures auth session based on test intent.
+    /// Example: LoginAsync(email, password, "valid", true)
+    /// Example: LoginAsync(email, password, "invalid", false)
+    /// Example: LoginAsync(email, password, "expired", false)
     /// </summary>
-    /// <param name="email">User email address.</param>
-    /// <param name="password">User password.</param>
-    /// <param name="cancellationToken">Cancellation token for the operation.</param>
-    /// <returns>The stored TokenState.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown if login fails, token extraction fails, or session context update fails.
-    /// </exception>
-    public async Task<TokenState> LoginAsync(
+    public async Task<TokenState?> LoginAsync(
         string email,
         string password,
+        string tokenScenario = "valid",
+        bool tokenState = true,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(email))
@@ -80,266 +57,121 @@ public sealed class AuthClient
             throw new ArgumentException("Password cannot be null or empty.", nameof(password));
         }
 
-        try
+        if (tokenState && !string.Equals(tokenScenario, "valid", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.Information("Authenticating user: {Email}", email);
+            throw new InvalidOperationException(
+                $"Invalid test setup: tokenState=true requires tokenScenario='valid'. Received '{tokenScenario}'.");
+        }
 
-            var payload = new { email, password };
-            var request = new APIRequestBuilder()
-                .WithMethod(HttpMethod.Post)
-                .WithEndpoint(_loginEndpoint)
-                .WithJsonBody(payload)
-                .Build();
+        var scenario = ParseScenario(tokenScenario);
+        var response = await ExecuteLoginRequestAsync(email, password, cancellationToken).ConfigureAwait(false);
+        var responseBody = response.Content is null
+            ? string.Empty
+            : await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
-            using (request)
+        if (!response.IsSuccessStatusCode)
+        {
+            if (tokenState && scenario == AuthTokenScenario.Valid)
             {
-                HttpResponseMessage response;
-                try
-                {
-                    response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException(
-                        $"Login API call failed for endpoint '{_loginEndpoint}': {ex.Message}", ex);
-                }
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    throw new InvalidOperationException(
-                        $"Login API returned unsuccessful status: {(int)response.StatusCode} {response.ReasonPhrase}. Response: {errorBody}");
-                }
-
-                string responseBody;
-                try
-                {
-                    responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException(
-                        $"Failed to read login response body: {ex.Message}", ex);
-                }
-
-                TokenState tokenState;
-                try
-                {
-                    tokenState = ExtractTokenFromResponse(responseBody);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException(
-                        $"Failed to extract authentication token from login response using JSONPath '{_tokenJsonPath}': {ex.Message}", ex);
-                }
-
-                _logger.Information("User authenticated successfully: {Email}", email);
-
-                // Store token in session context
-                try
-                {
-                    var sessionContext = ApiSessionContext.Current;
-                    _logger.Debug("Obtained session context: {ContextHashCode}", sessionContext.GetHashCode());
-                    
-                    sessionContext.SetToken(tokenState);
-                    sessionContext.StoreCredentials(email, password);
-                    _logger.Information("Token stored in session context. AccessToken={TokenPreview}, Expires at: {ExpiresAt}, TTL: {TtlSeconds}s",
-                        tokenState.AccessToken.Substring(0, Math.Min(20, tokenState.AccessToken.Length)) + "...",
-                        tokenState.ExpiresAt, 
-                        (int)tokenState.TimeRemaining.TotalSeconds);
-                    
-                    // Verify it was stored
-                    var storedToken = ApiSessionContext.Current.CurrentAccessToken;
-                    _logger.Information("Verification - Token retrieved from context: {IsStored}", !string.IsNullOrEmpty(storedToken));
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error(ex, "Failed to store token in session context");
-                    throw;
-                }
-
-                return tokenState;
+                throw new InvalidOperationException(
+                    $"Invalid test setup: tokenState=true with valid token requested, but login failed. " +
+                    $"Credentials may be incorrect. Status {(int)response.StatusCode} {response.ReasonPhrase}. Response: {responseBody}");
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Authentication failed for user: {Email}", email);
-            throw;
-        }
-    }
 
-    /// <summary>
-    /// Refreshes the current authentication token using a dedicated refresh-token endpoint.
-    /// This method is an extension point for backends that return refresh tokens and expose a refresh API.
-    /// The current framework runtime primarily relies on re-authentication with stored credentials.
-    /// 
-    /// NOTE: Only call this when your backend supports token refresh endpoints.
-    /// If refresh is not supported or if the refresh fails, callers should fall back to LoginAsync or
-    /// ReauthenticateIfStoredCredentialsAsync.
-    /// </summary>
-    /// <param name="refreshToken">The refresh token from the current session.</param>
-    /// <param name="refreshEndpoint">The API endpoint for token refresh (e.g., "/api/auth/refresh").</param>
-    /// <param name="cancellationToken">Cancellation token for the operation.</param>
-    /// <returns>The new TokenState.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if refresh fails.</exception>
-    public async Task<TokenState> RefreshTokenAsync(
-        string refreshToken,
-        string refreshEndpoint,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(refreshToken))
-        {
-            throw new ArgumentException("Refresh token cannot be null or empty.", nameof(refreshToken));
-        }
-
-        if (string.IsNullOrWhiteSpace(refreshEndpoint))
-        {
-            throw new ArgumentException("Refresh endpoint cannot be null or empty.", nameof(refreshEndpoint));
-        }
-
-        try
-        {
-            _logger.Information("Refreshing authentication token via endpoint: {RefreshEndpoint}", refreshEndpoint);
-
-            var payload = new { refreshToken };
-            var request = new APIRequestBuilder()
-                .WithMethod(HttpMethod.Post)
-                .WithEndpoint(refreshEndpoint)
-                .WithJsonBody(payload)
-                .Build();
-
-            using (request)
+            if (scenario == AuthTokenScenario.Missing)
             {
-                HttpResponseMessage response;
-                try
-                {
-                    response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException(
-                        $"Token refresh API call failed for endpoint '{refreshEndpoint}': {ex.Message}", ex);
-                }
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    throw new InvalidOperationException(
-                        $"Token refresh API returned unsuccessful status: {(int)response.StatusCode} {response.ReasonPhrase}. Response: {errorBody}");
-                }
-
-                string responseBody;
-                try
-                {
-                    responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException(
-                        $"Failed to read token refresh response body: {ex.Message}", ex);
-                }
-
-                TokenState tokenState;
-                try
-                {
-                    tokenState = ExtractTokenFromResponse(responseBody);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException(
-                        $"Failed to extract refreshed token from response using JSONPath '{_tokenJsonPath}': {ex.Message}", ex);
-                }
-
-                _logger.Information("Token refreshed successfully. New expiration: {ExpiresAt}", tokenState.ExpiresAt);
-
-                // Store new token in session context
-                ApiSessionContext.Current.SetToken(tokenState);
-
-                return tokenState;
+                ApiSessionContext.Current.ClearToken();
+                ApiSessionContext.Current.ClearStoredCredentials();
+                return null;
             }
+
+            // For negative invalid/expired scenarios with wrong creds, create synthetic unusable token.
+            var synthetic = BuildSyntheticToken(scenario);
+            ApiSessionContext.Current.SetToken(synthetic);
+            ApiSessionContext.Current.StoreCredentials(email, password);
+            return synthetic;
         }
-        catch (Exception ex)
+
+        var extracted = ExtractTokenFromResponse(responseBody);
+        var finalToken = scenario switch
         {
-            _logger.Error(ex, "Token refresh failed via endpoint: {RefreshEndpoint}", refreshEndpoint);
-            throw;
+            AuthTokenScenario.Valid => extracted,
+            AuthTokenScenario.Expired => extracted with { ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-5), AllowRefresh = false },
+            AuthTokenScenario.Invalid => extracted with { AccessToken = "invalid-token-for-negative-scenario", AllowRefresh = false },
+            AuthTokenScenario.Missing => null,
+            _ => throw new InvalidOperationException($"Unsupported token scenario: {scenario}")
+        };
+
+        if (finalToken is null)
+        {
+            ApiSessionContext.Current.ClearToken();
+            ApiSessionContext.Current.ClearStoredCredentials();
+            return null;
         }
+
+        ApiSessionContext.Current.SetToken(finalToken);
+        ApiSessionContext.Current.StoreCredentials(email, password);
+
+        if (tokenState && !finalToken.IsValid)
+        {
+            throw new InvalidOperationException(
+                "Invalid test setup: tokenState=true but generated token is not valid (expired/invalid). " +
+                "Use tokenScenario='valid' for positive flows.");
+        }
+
+        return finalToken;
     }
 
-    /// <summary>
-    /// Gets the current valid token from the session context.
-    /// If the token is expired or expiring, returns null so the caller can renew it.
-    /// </summary>
-    public string? GetCurrentToken()
+    public bool GetCurrentTokenState()
     {
-        return ApiSessionContext.Current.AccessToken;
+        return ApiSessionContext.Current.CurrentToken?.IsValid == true;
     }
 
-    /// <summary>
-    /// Gets the current token state from the session context.
-    /// </summary>
-    public TokenState? GetCurrentTokenState()
+    public TokenState? GetCurrentTokenDetails()
     {
         return ApiSessionContext.Current.CurrentToken;
     }
 
-    /// <summary>
-    /// Validates token existence and expiry state.
-    /// </summary>
-    public void ValidateTokenExists()
+    public void ValidateTokenExists(bool shouldExist, string expectedState)
     {
         var token = ApiSessionContext.Current.CurrentToken;
-        if (token is null)
+        var actual = ClassifyState(token);
+        var expected = NormalizeExpectedState(expectedState);
+
+        if (shouldExist && token is null)
         {
-            throw new InvalidOperationException(
-                "No authentication token found in session context. " +
-                "Ensure LoginAsync() is called before making authenticated API requests.");
+            throw new InvalidOperationException("Expected token to exist, but no token is present.");
         }
 
-        if (token.IsExpiredOrExpiring)
+        if (!shouldExist && token is null)
         {
-            throw new InvalidOperationException(
-                $"Authentication token has expired or is expiring soon (expires at {token.ExpiresAt:O}). " +
-                "Renew the token before continuing by re-authenticating, or call RefreshTokenAsync() only when the backend supports refresh tokens.");
+            return;
+        }
+
+        if (expected != actual)
+        {
+            throw new InvalidOperationException($"Expected token state '{expected}', but actual state is '{actual}'.");
         }
     }
 
-    /// <summary>
-    /// Forces re-authentication using stored credentials from the session context.
-    /// This is the active automatic renewal path used by the framework when the current token expires.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token for the operation.</param>
-    /// <returns>The new TokenState after re-authentication.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown if stored credentials are not available or re-authentication fails.
-    /// </exception>
-    public async Task<TokenState> ReauthenticateIfStoredCredentialsAsync(CancellationToken cancellationToken = default)
+    private async Task<HttpResponseMessage> ExecuteLoginRequestAsync(
+        string email,
+        string password,
+        CancellationToken cancellationToken)
     {
-        var (email, password) = ApiSessionContext.Current.GetStoredCredentials();
-        
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-        {
-            throw new InvalidOperationException(
-                "Cannot re-authenticate: no stored credentials found in session context. " +
-                "Ensure LoginAsync() was called first to store credentials.");
-        }
+        var payload = new { email, password };
+        var request = new APIRequestBuilder()
+            .WithMethod(HttpMethod.Post)
+            .WithEndpoint(_loginEndpoint)
+            .WithJsonBody(payload)
+            .Build();
 
-        _logger.Information("Token expired mid-test. Re-authenticating with stored credentials for: {Email}", email);
-        
-        try
+        using (request)
         {
-            return await LoginAsync(email, password, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Failed to re-authenticate after token expiry for user: {Email}", email);
-            throw;
+            return await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    /// <summary>
-    /// Extracts token from the API login or refresh response using JSONPath.
-    /// Calculates expiration time based on default TTL.
-    /// </summary>
     private TokenState ExtractTokenFromResponse(string responseBody)
     {
         if (string.IsNullOrWhiteSpace(responseBody))
@@ -347,60 +179,85 @@ public sealed class AuthClient
             throw new InvalidOperationException("Response body cannot be null or empty when extracting token.");
         }
 
-        try
+        var response = JObject.Parse(responseBody);
+        var tokenValue = response.SelectToken(_tokenJsonPath);
+        if (tokenValue is null)
         {
-            var response = JObject.Parse(responseBody);
-            var tokenValue = response.SelectToken(_tokenJsonPath);
-
-            if (tokenValue is null)
-            {
-                throw new InvalidOperationException(
-                    $"Token not found at JSONPath '{_tokenJsonPath}' in response: {responseBody}");
-            }
-
-            string? token = tokenValue.Value<string>();
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                throw new InvalidOperationException(
-                    $"Token value at JSONPath '{_tokenJsonPath}' is null, empty, or not a string.");
-            }
-
-            // Calculate expiration time
-            // If the API response includes tokenExpiresIn, use that; otherwise use default TTL
-            var expiresInToken = response.SelectToken("$.expiresIn") ?? response.SelectToken("$.expires_in");
-            int ttlSeconds = _defaultTokenTtlSeconds;
-
-            if (expiresInToken is not null && int.TryParse(expiresInToken.ToString(), out int serverTtl) && serverTtl > 0)
-            {
-                ttlSeconds = serverTtl;
-                _logger.Debug("Using server-provided token TTL: {TtlSeconds} seconds from response field 'expiresIn'/'expires_in'", ttlSeconds);
-            }
-            else
-            {
-                _logger.Debug("Server did not provide valid expiresIn/expires_in. Using default token TTL: {TtlSeconds} seconds", ttlSeconds);
-            }
-
-            var utcNow = DateTimeOffset.UtcNow;
-            var expiresAt = utcNow.AddSeconds(ttlSeconds);
-            
-            _logger.Debug("Token extraction: Issued at UTC={IssuedAtUtc:O}, ExpiresAt UTC={ExpiresAtUtc:O}, TTL={TtlSeconds}s, TimeRemaining={TimeRemaining}ms",
-                utcNow, expiresAt, ttlSeconds, (expiresAt - utcNow).TotalMilliseconds);
-
-            if (expiresAt <= utcNow)
-            {
-                _logger.Warning("WARNING: Calculated expiration time ({ExpiresAt:O}) is not in the future! Current UTC: {UtcNow:O}. TTL was {TtlSeconds} seconds.",
-                    expiresAt, utcNow, ttlSeconds);
-            }
-
-            return new TokenState(
-                AccessToken: token,
-                ExpiresAt: expiresAt,
-                RefreshToken: null);
+            throw new InvalidOperationException($"Token not found at JSONPath '{_tokenJsonPath}'.");
         }
-        catch (Exception ex)
+
+        var token = tokenValue.Value<string>();
+        if (string.IsNullOrWhiteSpace(token))
         {
-            throw new InvalidOperationException(
-                $"Failed to parse or extract token from response body: {ex.Message}", ex);
+            throw new InvalidOperationException("Extracted token is null or empty.");
         }
+
+        var expiresInToken = response.SelectToken("$.expiresIn") ?? response.SelectToken("$.expires_in");
+        var ttlSeconds = _defaultTokenTtlSeconds;
+        if (expiresInToken is not null && int.TryParse(expiresInToken.ToString(), out var serverTtl) && serverTtl > 0)
+        {
+            ttlSeconds = serverTtl;
+        }
+
+        return new TokenState(token, DateTimeOffset.UtcNow.AddSeconds(ttlSeconds));
     }
+
+    private static TokenState BuildSyntheticToken(AuthTokenScenario scenario)
+    {
+        return scenario switch
+        {
+            AuthTokenScenario.Invalid => new TokenState("invalid-token-for-negative-scenario", DateTimeOffset.UtcNow.AddHours(1), AllowRefresh: false),
+            AuthTokenScenario.Expired => new TokenState("expired-token-for-negative-scenario", DateTimeOffset.UtcNow.AddHours(-1), AllowRefresh: false),
+            _ => throw new InvalidOperationException($"Synthetic token generation not supported for scenario {scenario}")
+        };
+    }
+
+    private static string ClassifyState(TokenState? token)
+    {
+        if (token is null)
+        {
+            return "missing";
+        }
+
+        if (string.IsNullOrWhiteSpace(token.AccessToken))
+        {
+            return "invalid";
+        }
+
+        return token.IsValid ? "valid" : "expired";
+    }
+
+    private static string NormalizeExpectedState(string expectedState)
+    {
+        var normalized = (expectedState ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "valid" => "valid",
+            "expired" => "expired",
+            "invalid" => "invalid",
+            "missing" => "missing",
+            _ => throw new ArgumentException("Supported expected states are: valid, expired, invalid, missing.", nameof(expectedState))
+        };
+    }
+
+    private static AuthTokenScenario ParseScenario(string tokenScenario)
+    {
+        var normalized = (tokenScenario ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "valid" => AuthTokenScenario.Valid,
+            "expired" => AuthTokenScenario.Expired,
+            "invalid" => AuthTokenScenario.Invalid,
+            "missing" => AuthTokenScenario.Missing,
+            _ => throw new ArgumentException("Supported token scenarios are: valid, expired, invalid, missing.", nameof(tokenScenario))
+        };
+    }
+}
+
+public enum AuthTokenScenario
+{
+    Valid,
+    Expired,
+    Invalid,
+    Missing
 }

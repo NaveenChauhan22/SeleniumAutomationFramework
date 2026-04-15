@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\APIPages\**\*.cs" Link="APIPages\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\ApiClients\**\*.cs" Link="ApiClients\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Pages\**\*.cs" Link="Pages\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Framework.Reporting\AllureHooks.cs" Link="Infrastructure\AllureHooks.cs" />
     <None Include="..\..\config\appsettings.json" Link="appsettings.json">
