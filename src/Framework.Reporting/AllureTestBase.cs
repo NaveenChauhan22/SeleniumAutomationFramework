@@ -33,6 +33,17 @@ public abstract class AllureTestBase
 
             AllureApi.AddTestParameter("Browser", RuntimeContext.BrowserName);
             AllureApi.AddTestParameter("TestType", RuntimeContext.TestType);
+            
+            try
+            {
+                AllureApi.AddTestParameter("Role", GetCurrentTestRole());
+            }
+            catch (InvalidOperationException)
+            {
+                // Role is only required for tests that use authentication
+                AllureApi.AddTestParameter("Role", "none");
+            }
+            
             AllureApi.AddTestParameter("Duration", $"{duration.TotalSeconds:F2}s");
             AllureApi.AddTestParameter("Outcome", outcome.ToString());
 
@@ -95,6 +106,54 @@ public abstract class AllureTestBase
             ?? GetType().Name;
     }
 
+    /// <summary>
+    /// Resolves the test role from multiple sources (in priority order):
+    /// 1. Method-level [TestRole] attribute (highest priority)
+    /// 2. Class-level [TestRole] attribute
+    /// 3. TEST_EXECUTION_ROLE environment variable
+    /// 
+    /// This allows flexible role specification:
+    /// - Set TEST_EXECUTION_ROLE=admin to run all tests as admin (runtime flexibility)
+    /// - Use [TestRole("admin")] at method level to override for specific tests
+    /// - Use [TestRole("admin")] at class level for role-specific test suites
+    /// </summary>
+    /// <returns>The resolved role name in lowercase.</returns>
+    /// <exception cref="InvalidOperationException">Thrown only if test uses authentication but no role is provided anywhere.</exception>
+    protected string GetCurrentTestRole()
+    {
+        var method = ResolveTestMethod();
+        
+        // Priority 1: Method-level TestRole attribute
+        var role = method?.GetCustomAttribute<TestRoleAttribute>(true)?.Role;
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            return role;
+        }
+
+        // Priority 2: Class-level TestRole attribute
+        role = GetType().GetCustomAttribute<TestRoleAttribute>(true)?.Role;
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            return role;
+        }
+
+        // Priority 3: TEST_EXECUTION_ROLE environment variable
+        role = Environment.GetEnvironmentVariable("TEST_EXECUTION_ROLE");
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            return role.Trim().ToLowerInvariant();
+        }
+
+        // No role found - throw error with guidance
+        throw new InvalidOperationException(
+            $"Test '{GetType().Name}.{method?.Name}' does not specify a role for execution. "
+            + "Provide a role using one of these methods:\n"
+            + "  1. Environment variable: set TEST_EXECUTION_ROLE=admin (or user, organizer, viewer)\n"
+            + "  2. Method-level attribute: [TestRole(\"admin\")] on the test method\n"
+            + "  3. Class-level attribute: [TestRole(\"admin\")] on the test class\n"
+            + "Supported roles: admin, user, organizer, viewer.");
+    }
+
     protected sealed record AllureAttachment(string Name, string ContentType, string? FilePath = null, string? Content = null, string FileExtension = "txt");
 
     private void ApplyMetadata()
@@ -108,6 +167,17 @@ public abstract class AllureTestBase
 
         AllureApi.AddLabel("browser", RuntimeContext.BrowserName);
         AllureApi.AddLabel("testType", RuntimeContext.TestType);
+        
+        try
+        {
+            AllureApi.AddLabel("role", GetCurrentTestRole());
+        }
+        catch (InvalidOperationException)
+        {
+            // Role is only required for tests that use authentication.
+            // Non-auth tests may not have a role declared.
+            AllureApi.AddLabel("role", "none");
+        }
     }
 
     private static void ApplyPriority(MethodInfo? method, MemberInfo testClass)

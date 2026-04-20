@@ -78,12 +78,9 @@ public abstract class BaseTest
 
         Assert.That(loginData, Is.Not.Null, "login test data must be valid JSON");
 
-        // validCredentials are now loaded from environment variables (TEST_USER_EMAIL, TEST_USER_PASSWORD)
-        // If not set, an InvalidOperationException is thrown with helpful instructions
-        Assert.That(loginData!.ValidCredentials.Email, Is.Not.Null.And.Not.Empty,
-            "validCredentials.email is required - must be set via TEST_USER_EMAIL environment variable");
-        Assert.That(loginData.ValidCredentials.Password, Is.Not.Null.And.Not.Empty,
-            "validCredentials.password is required - must be set via TEST_USER_PASSWORD environment variable");
+        Assert.That(loginData!.Roles, Is.Not.Null, "roles section is required in loginData.json");
+        Assert.That(loginData.Roles.Count, Is.GreaterThan(0),
+            "At least one role must be configured in loginData.json");
 
         return loginData;
     }
@@ -129,12 +126,33 @@ public abstract class BaseTest
         return data!;
     }
 
-    protected void LoginAsValidUser(LoginTestData? loginData = null)
+    protected void LoginAsRole(string role, LoginTestData? loginData = null)
     {
         var data = loginData ?? LoadLoginData();
-        ReportHelper.AddStep("Logging in as pre-requisite with valid credentials");
+        var credentials = ResolveRoleCredentials(data, role);
+        ReportHelper.AddStep($"Logging in as role '{role}'");
         var loginPage = new LoginPage(Driver, Wait);
-        loginPage.LoginAs(data.ValidCredentials.Email, data.ValidCredentials.Password);
+        loginPage.LoginAs(credentials.Email, credentials.Password);
+    }
+
+    protected void LoginAsCurrentRole(LoginTestData? loginData = null)
+    {
+        LoginAsRole(GetCurrentTestRole(), loginData);
+    }
+
+    protected RoleCredentials ResolveRoleCredentials(LoginTestData data, string? role = null)
+    {
+        var resolvedRole = role ?? GetCurrentTestRole();
+        var roles = data.Roles
+            .ToDictionary(
+                kvp => kvp.Key,
+                kvp => new RoleCredentials(kvp.Value.Email, kvp.Value.Password),
+                StringComparer.OrdinalIgnoreCase);
+
+        var provider = RoleCredentialProvider.Create(
+            roles);
+
+        return RoleCredentialResolver.Resolve(resolvedRole, provider);
     }
 
     [TearDown]
@@ -232,7 +250,7 @@ public abstract class BaseTest
 
     protected sealed class LoginTestData
     {
-        public Credentials ValidCredentials { get; init; } = new();
+        public Dictionary<string, Credentials> Roles { get; init; } = new(StringComparer.OrdinalIgnoreCase);
         public InvalidEmailScenarioData InvalidEmailScenario { get; init; } = new();
         public ShortPasswordScenarioData ShortPasswordScenario { get; init; } = new();
         public EmptyFieldsScenarioData EmptyFieldsScenario { get; init; } = new();

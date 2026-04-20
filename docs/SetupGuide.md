@@ -304,19 +304,40 @@ Why this step: .env stores your local credentials without changing source code.
 
 ### Step 2: Add Your Test Credentials in .env
 
-Update the file with your valid test account values:
+Update the file with your valid role credentials:
 
 ```bash
 TEST_USER_EMAIL=your_test_email@example.com
 TEST_USER_PASSWORD=your_test_password
+TEST_ADMIN_EMAIL=your_admin_email@example.com
+TEST_ADMIN_PASSWORD=your_admin_password
 ```
 
-Why this step: Tests read these values at runtime to log in.
+Why this step: tests can run role-specific execution using these variables.
+
+Optional runtime role selector:
+
+```bash
+TEST_EXECUTION_ROLE=user
+```
+
+If not set, role can still be declared with `[TestRole("user")]` or `[TestRole("admin")]` in tests.
 
 ### Step 3: Understand Security Rule
 
 - Never commit .env to source control.
 - Keep only test credentials, never production credentials.
+
+---
+
+## 4. Role Execution Readiness
+
+Before running role-based tests, verify:
+- `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` are present for user-tagged tests.
+- `TEST_ADMIN_EMAIL` and `TEST_ADMIN_PASSWORD` are present for admin-tagged tests.
+- If you want one role across a full run, set `TEST_EXECUTION_ROLE` in the shell before `dotnet test`.
+
+For complete role execution examples, see [ExecutionGuide.md](./ExecutionGuide.md#4a-role-based-execution).
 
 Why this step: This prevents accidental credential exposure.
 

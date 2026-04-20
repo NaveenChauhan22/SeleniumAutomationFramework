@@ -378,6 +378,25 @@ git push -u origin main
 
 ------------------------------------------------------------------------
 
+# 14. Role-Based Execution Architecture (Current)
+
+Execution role selection order:
+1. Method-level `TestRoleAttribute`
+2. Class-level `TestRoleAttribute`
+3. `TEST_EXECUTION_ROLE` environment variable
+
+Credential resolution for selected role:
+1. `TEST_{ROLE}_EMAIL` and `TEST_{ROLE}_PASSWORD`
+2. `roles.{role}` in `resources/testdata/loginData.json`
+3. Fail fast for missing or invalid credential pairs
+
+API token strategy is role-aware:
+- Suite token cache is maintained per role (`_suiteTokens`)
+- Positive flows bind cached token for resolved role
+- Expired token refresh is lock-protected and scoped per role
+
+This allows user-only, admin-only, and mixed-role test execution in the same framework without adding a new architectural layer.
+
 # Expected Outcome
 
 After Phase 1:

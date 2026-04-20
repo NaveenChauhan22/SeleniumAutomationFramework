@@ -1,7 +1,21 @@
 {
-  "validCredentials": {
-    "email": "${TEST_USER_EMAIL}",
-    "password": "${TEST_USER_PASSWORD}"
+  "roles": {
+    "admin": {
+      "email": "${TEST_ADMIN_EMAIL:-}",
+      "password": "${TEST_ADMIN_PASSWORD:-}"
+    },
+    "user": {
+      "email": "${TEST_USER_EMAIL:-}",
+      "password": "${TEST_USER_PASSWORD:-}"
+    },
+    "organizer": {
+      "email": "${TEST_ORGANIZER_EMAIL:-}",
+      "password": "${TEST_ORGANIZER_PASSWORD:-}"
+    },
+    "viewer": {
+      "email": "${TEST_VIEWER_EMAIL:-}",
+      "password": "${TEST_VIEWER_PASSWORD:-}"
+    }
   },
   "invalidEmailScenario": {
     "email": "not-a-valid-email",

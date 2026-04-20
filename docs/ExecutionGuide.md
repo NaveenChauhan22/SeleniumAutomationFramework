@@ -245,15 +245,102 @@ Why this step: Sanity tests validate important but broader functionality after s
 
 **Windows (PowerShell):**
 ```powershell
-dotnet test .\tests\UITests\UITests.csproj --filter "Name=Login_WithValidCredentials"
+dotnet test .\tests\UITests\UITests.csproj --filter "Name=Login_WithConfiguredRoleCredentials_ShouldAuthenticate"
 ```
 
 **macOS (Terminal):**
 ```bash
-dotnet test ./tests/UITests/UITests.csproj --filter "Name=Login_WithValidCredentials"
+dotnet test ./tests/UITests/UITests.csproj --filter "Name=Login_WithConfiguredRoleCredentials_ShouldAuthenticate"
 ```
 
 Why this step: This is useful for quick re-check of a single failed test.
+
+Note: this test is parameterized with multiple role test cases.
+
+### Step 4: Run Role + Smoke Filter (Optional)
+
+**Windows (PowerShell):**
+```powershell
+$env:TEST_EXECUTION_ROLE = "admin"
+dotnet test .\SeleniumAutomationFramework.sln --filter "Category=admin&Category=Smoke"
+```
+
+**macOS (Terminal):**
+```bash
+export TEST_EXECUTION_ROLE=admin
+dotnet test ./SeleniumAutomationFramework.sln --filter "Category=admin&Category=Smoke"
+```
+
+Why this step: `TestRole` is now an NUnit category, so role and smoke can be filtered together.
+
+---
+
+## 4A. Role-Based Execution
+
+Use this section to run tests for a specific role or mixed-role suite.
+This section includes both role execution commands and role-resolution rules in one place.
+
+`[TestRole("...")]` is also an NUnit category, so role and test-type filters can be combined.
+
+Role resolution order:
+1. Method-level `[TestRole("...")]`
+2. Class-level `[TestRole("...")]`
+3. `TEST_EXECUTION_ROLE` environment variable
+4. Fail fast if no role is available for auth-dependent tests
+
+Credential lookup order for selected role:
+1. `TEST_{ROLE}_EMAIL` and `TEST_{ROLE}_PASSWORD`
+2. `roles.{role}` in `resources/testdata/loginData.json`
+3. Fail with clear setup error if missing/incomplete
+
+Supported default role keys: `user`, `admin`, `organizer`, `viewer`.
+
+### Run User Role + Smoke Category
+
+**Windows (PowerShell):**
+```powershell
+$env:TEST_EXECUTION_ROLE = "user"
+dotnet test .\SeleniumAutomationFramework.sln --filter "Category=user&Category=Smoke"
+```
+
+**macOS (Terminal):**
+```bash
+export TEST_EXECUTION_ROLE=user
+dotnet test ./SeleniumAutomationFramework.sln --filter "Category=user&Category=Smoke"
+```
+
+### Run Admin Role + Smoke Category
+
+**Windows (PowerShell):**
+```powershell
+$env:TEST_EXECUTION_ROLE = "admin"
+dotnet test .\SeleniumAutomationFramework.sln --filter "Category=admin&Category=Smoke"
+```
+
+**macOS (Terminal):**
+```bash
+export TEST_EXECUTION_ROLE=admin
+dotnet test ./SeleniumAutomationFramework.sln --filter "Category=admin&Category=Smoke"
+```
+
+### Run Admin Role + Smoke + API Auth Name Pattern
+
+**Windows (PowerShell):**
+```powershell
+$env:TEST_EXECUTION_ROLE = "admin"
+dotnet test .\tests\APITests\APITests.csproj --filter "Category=admin&Category=Smoke&FullyQualifiedName~Auth"
+```
+
+**macOS (Terminal):**
+```bash
+export TEST_EXECUTION_ROLE=admin
+dotnet test ./tests/APITests/APITests.csproj --filter "Category=admin&Category=Smoke&FullyQualifiedName~Auth"
+```
+
+### Mixed-Role in a Single Run
+
+If tests are annotated with `[TestRole("user")]` and `[TestRole("admin")]`, one `dotnet test` run will execute them under their declared roles.
+`TEST_EXECUTION_ROLE` still acts as credential fallback for tests that do not declare a role.
 
 ---
 

@@ -11,6 +11,7 @@ namespace APITests;
 [AllureParentSuite("APITests")]
 [AllureSuite("Events API")]
 [AllureFeature("Events")]
+[TestRole("user")]
 public class EventsAPITests : APITestBase
 {
     [Test]

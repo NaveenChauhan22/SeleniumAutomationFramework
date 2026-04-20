@@ -11,6 +11,7 @@ namespace UITests;
 [AllureParentSuite("UITests")]
 [AllureSuite("Home Navigation")]
 [AllureFeature("Navigation")]
+[TestRole("user")]
 public class HomeNavigationTests : BaseTest
 {
     private LoginTestData _loginData = null!;
@@ -21,7 +22,7 @@ public class HomeNavigationTests : BaseTest
     {
         _loginData = LoadLoginData();
         _homeData = LoadHomePageAssertionData();
-        LoginAsValidUser(_loginData);
+        LoginAsCurrentRole(_loginData);
     }
 
     [Test]
@@ -96,7 +97,6 @@ public class HomeNavigationTests : BaseTest
     }
 
     [Test]
-    [Category("Medium")]
     [Category("Sanity")]
     [Priority(TestPriority.Medium)]
     [AllureStory("Featured events defaults data in Excel")]
@@ -130,7 +130,6 @@ public class HomeNavigationTests : BaseTest
     }
 
     [Test]
-    [Category("Medium")]
     [Category("Sanity")]
     [Priority(TestPriority.Medium)]
     [AllureStory("Events route data in Excel")]
@@ -145,7 +144,6 @@ public class HomeNavigationTests : BaseTest
     }
 
     [Test]
-    [Category("Medium")]
     [Category("Sanity")]
     [Priority(TestPriority.Medium)]
     [AllureStory("Bookings route data in Excel")]

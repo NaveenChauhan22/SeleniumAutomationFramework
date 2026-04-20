@@ -22,13 +22,12 @@ public abstract class APITestBase : AllureTestBase
     protected BookingsApiClient BookingsApi = null!;
     protected ApiSuiteData ApiData = null!;
     protected LoginDataModel LoginData = null!;
+    protected RoleCredentialProvider RoleCredentials = null!;
 
     private IDisposable? _executionLoggerHandle;
-        // Suite-level token cache: one login per fixture, reused across all positive tests.
-        // Refreshed automatically in [SetUp] if the token expired between tests.
-        private TokenState? _suiteToken;
-        private (string Email, string Password) _suiteCredentials;
-        private readonly SemaphoreSlim _suiteLock = new(1, 1);
+    private readonly Dictionary<string, TokenState?> _suiteTokens = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (string Email, string Password)> _suiteCredentialsByRole = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _suiteLock = new(1, 1);
 
     private readonly Stopwatch _executionTimer = new();
     private DateTimeOffset _testStartedAt;
@@ -56,6 +55,8 @@ public abstract class APITestBase : AllureTestBase
         LoginData = LoadLoginData();
         Assert.That(LoginData, Is.Not.Null, "LoginData should not be null after loading from loginData.json.");
         Assert.That(LoginData.ApiAuth, Is.Not.Null, "LoginData.ApiAuth should not be null.");
+        RoleCredentials = BuildRoleCredentialProvider(LoginData);
+        Assert.That(RoleCredentials, Is.Not.Null, "Role credential provider should be initialized.");
         
         ApiData = LoadApiTestData(LoginData.ApiAuth);
         Assert.That(ApiData, Is.Not.Null, "ApiData should not be null after merging from all data sources.");
@@ -98,26 +99,6 @@ public abstract class APITestBase : AllureTestBase
         Assert.That(BookingsApi, Is.Not.Null, "BookingsApiClient initialization failed.");
         Assert.That(ApiData.Endpoints.Bookings, Is.Not.Null, "ApiData.Endpoints.Bookings should not be null.");
 
-        // One login for the entire fixture. Token is reused across all positive tests.
-        // If credentials are not configured (e.g., env var placeholders), _suiteToken stays null
-        // and the context is cleared per-test â€” no test will crash here.
-        try
-        {
-            _suiteCredentials = (LoginData.ValidCredentials.Email, LoginData.ValidCredentials.Password);
-            _suiteToken = await SharedAuthClient.LoginAsync(
-                _suiteCredentials.Email,
-                _suiteCredentials.Password,
-                tokenScenario: "valid",
-                tokenState: true);
-
-            Logger.Information("Suite login succeeded. Token valid until {ExpiresAt}.", _suiteToken?.ExpiresAt);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logger.Warning("Suite login failed â€” credentials may not be configured. " +
-                "Positive tests will proceed without a pre-loaded token. Error: {Message}", ex.Message);
-            _suiteToken = null;
-        }
     }
 
     [OneTimeTearDown]
@@ -309,12 +290,9 @@ public abstract class APITestBase : AllureTestBase
 
         var data = JsonDataProvider.Read<LoginDataModel>(path);
         Assert.That(data, Is.Not.Null, "loginData.json must be valid JSON and deserializable to LoginDataModel.");
-        
-        Assert.That(data!.ValidCredentials, Is.Not.Null, "data.ValidCredentials cannot be null in loginData.json.");
-        Assert.That(data.ValidCredentials.Email, Is.Not.Null.And.Not.Empty,
-            "validCredentials.email is required in loginData.json. Ensure TEST_USER_EMAIL environment variable is set or 'validCredentials.email' exists in the JSON file.");
-        Assert.That(data.ValidCredentials.Password, Is.Not.Null.And.Not.Empty,
-            "validCredentials.password is required in loginData.json. Ensure TEST_USER_PASSWORD environment variable is set or 'validCredentials.password' exists in the JSON file.");
+        Assert.That(data!.Roles, Is.Not.Null, "roles section is required in loginData.json.");
+        Assert.That(data.Roles.Count, Is.GreaterThan(0),
+            "At least one role must be configured in loginData.json.");
         
         Assert.That(data.ApiAuth, Is.Not.Null, "apiAuth section is required in loginData.json for API authentication configuration.");
         Assert.That(data.WrongPasswordScenario, Is.Not.Null, "wrongPasswordScenario section is required in loginData.json for negative test scenarios.");
@@ -340,12 +318,12 @@ public abstract class APITestBase : AllureTestBase
         // can reject them (e.g. wrong-password negative tests).
         if (tokenState
             && string.Equals(tokenScenario, "valid", StringComparison.OrdinalIgnoreCase)
-            && _suiteToken?.IsValid == true
-            && string.Equals(email, _suiteCredentials.Email, StringComparison.OrdinalIgnoreCase))
+            && TryGetCachedSuiteToken(email, password, out var cachedToken)
+            && cachedToken?.IsValid == true)
         {
-            ApiSessionContext.Current.SetToken(_suiteToken);
+            ApiSessionContext.Current.SetToken(cachedToken);
             ApiSessionContext.Current.StoreCredentials(email, password);
-            return _suiteToken;
+            return cachedToken;
         }
 
         var configured = await SharedAuthClient
@@ -374,26 +352,75 @@ public abstract class APITestBase : AllureTestBase
     /// </summary>
     protected async Task EnsureValidTokenAsync()
     {
+        await EnsureValidTokenAsync(GetCurrentTestRole());
+    }
+
+    protected async Task EnsureValidTokenAsync(string role)
+    {
+        var roleCredentials = ResolveRoleCredentials(role);
         await LoginAsync(
-            LoginData.ValidCredentials.Email,
-            LoginData.ValidCredentials.Password,
+            roleCredentials.Email,
+            roleCredentials.Password,
             tokenScenario: "valid",
             tokenState: true);
+    }
+
+    protected Task<TokenState?> LoginAsRoleAsync(
+        string role,
+        string tokenScenario = "valid",
+        bool tokenState = true,
+        CancellationToken cancellationToken = default)
+    {
+        var credentials = ResolveRoleCredentials(role);
+        return LoginAsync(credentials.Email, credentials.Password, tokenScenario, tokenState, cancellationToken);
+    }
+
+    protected Task<TokenState?> LoginAsCurrentRoleAsync(
+        string tokenScenario = "valid",
+        bool tokenState = true,
+        CancellationToken cancellationToken = default)
+    {
+        return LoginAsRoleAsync(GetCurrentTestRole(), tokenScenario, tokenState, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves credentials for the requested role using provider/resolver strategy.
+    /// </summary>
+    /// <param name="role">Role key to resolve (for example: admin, user, organizer, viewer).</param>
+    /// <returns>Tuple of email and password for the role.</returns>
+    protected (string Email, string Password) ResolveRoleCredentials(string? role = null)
+    {
+        var resolvedRole = role ?? GetCurrentTestRole();
+        var credentials = RoleCredentialResolver.Resolve(resolvedRole, RoleCredentials);
+        return (credentials.Email, credentials.Password);
+    }
+
+    private static RoleCredentialProvider BuildRoleCredentialProvider(LoginDataModel data)
+    {
+        var roles = data.Roles
+            .ToDictionary(
+                kvp => kvp.Key,
+                kvp => new RoleCredentials(kvp.Value.Email, kvp.Value.Password),
+                StringComparer.OrdinalIgnoreCase);
+
+        return RoleCredentialProvider.Create(roles);
     }
 
     /// <summary>
     /// Binds an already-issued suite token into the current test execution context without
     /// performing any network login. Returns false if the suite token is missing or expired.
     /// </summary>
-    protected bool TryBindSuiteTokenToCurrentContext()
+    protected bool TryBindSuiteTokenToCurrentContext(string? role = null)
     {
-        if (_suiteToken is null || !_suiteToken.IsValid)
+        var resolvedRole = role ?? GetCurrentTestRole();
+        if (!_suiteTokens.TryGetValue(resolvedRole, out var suiteToken) || suiteToken is null || !suiteToken.IsValid)
         {
             return false;
         }
 
-        ApiSessionContext.Current.SetToken(_suiteToken);
-        ApiSessionContext.Current.StoreCredentials(_suiteCredentials.Email, _suiteCredentials.Password);
+        var credentials = _suiteCredentialsByRole[resolvedRole];
+        ApiSessionContext.Current.SetToken(suiteToken);
+        ApiSessionContext.Current.StoreCredentials(credentials.Email, credentials.Password);
         return true;
     }
 
@@ -401,28 +428,38 @@ public abstract class APITestBase : AllureTestBase
     /// One-line helper for positive tests: bind suite token to current context or mark test inconclusive.
     /// Keeps test bodies clean while preserving suite-level auth intent.
     /// </summary>
-    protected void EnsurePositiveAuthContextOrInconclusive(string flowName)
+    protected void EnsurePositiveAuthContextOrInconclusive(string flowName, string? role = null)
     {
-        if (TryBindSuiteTokenToCurrentContext())
+        var resolvedRole = role ?? GetCurrentTestRole();
+        if (TryBindSuiteTokenToCurrentContext(resolvedRole))
         {
             return;
         }
 
-        Assert.Inconclusive($"No suite token available for positive {flowName} flow.");
+        Assert.Inconclusive($"No suite token available for positive {flowName} flow using role '{resolvedRole}'.");
     }
 
-    private async Task EnsureSuiteTokenAsync()
+    private async Task EnsureSuiteTokenAsync(string? role = null)
     {
-        if (_suiteToken is null)
+        var resolvedRole = role ?? GetCurrentTestRole();
+        if (!_suiteCredentialsByRole.ContainsKey(resolvedRole))
+        {
+            await PrimeRoleSuiteTokenAsync(resolvedRole).ConfigureAwait(false);
+        }
+
+        if (!_suiteTokens.TryGetValue(resolvedRole, out var suiteToken) || suiteToken is null)
         {
             ApiSessionContext.Current.ClearToken();
+            ApiSessionContext.Current.ClearStoredCredentials();
             return;
         }
 
-        if (_suiteToken.IsValid)
+        var roleCredentials = _suiteCredentialsByRole[resolvedRole];
+
+        if (suiteToken.IsValid)
         {
-            ApiSessionContext.Current.SetToken(_suiteToken);
-            ApiSessionContext.Current.StoreCredentials(_suiteCredentials.Email, _suiteCredentials.Password);
+            ApiSessionContext.Current.SetToken(suiteToken);
+            ApiSessionContext.Current.StoreCredentials(roleCredentials.Email, roleCredentials.Password);
             return;
         }
 
@@ -430,40 +467,82 @@ public abstract class APITestBase : AllureTestBase
         await _suiteLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_suiteToken.IsValid) // double-check after acquiring lock
+            if (_suiteTokens.TryGetValue(resolvedRole, out suiteToken) && suiteToken?.IsValid == true)
             {
-                ApiSessionContext.Current.SetToken(_suiteToken);
-                ApiSessionContext.Current.StoreCredentials(_suiteCredentials.Email, _suiteCredentials.Password);
+                ApiSessionContext.Current.SetToken(suiteToken);
+                ApiSessionContext.Current.StoreCredentials(roleCredentials.Email, roleCredentials.Password);
                 return;
             }
 
-            Logger.Information("Suite token expired. Re-authenticating before next test...");
+            Logger.Information("Suite token for role {Role} expired. Re-authenticating before next test...", resolvedRole);
             try
             {
-                _suiteToken = await SharedAuthClient.LoginAsync(
-                    _suiteCredentials.Email,
-                    _suiteCredentials.Password,
+                suiteToken = await SharedAuthClient.LoginAsync(
+                    roleCredentials.Email,
+                    roleCredentials.Password,
                     tokenScenario: "valid",
                     tokenState: true).ConfigureAwait(false);
 
-                if (_suiteToken is not null)
+                _suiteTokens[resolvedRole] = suiteToken;
+
+                if (suiteToken is not null)
                 {
-                    Logger.Information("Suite token refreshed. Valid until {ExpiresAt}.", _suiteToken.ExpiresAt);
-                    ApiSessionContext.Current.SetToken(_suiteToken);
-                    ApiSessionContext.Current.StoreCredentials(_suiteCredentials.Email, _suiteCredentials.Password);
+                    Logger.Information("Suite token for role {Role} refreshed. Valid until {ExpiresAt}.", resolvedRole, suiteToken.ExpiresAt);
+                    ApiSessionContext.Current.SetToken(suiteToken);
+                    ApiSessionContext.Current.StoreCredentials(roleCredentials.Email, roleCredentials.Password);
                 }
             }
             catch (InvalidOperationException ex)
             {
-                Logger.Warning("Suite token refresh failed: {Message}", ex.Message);
-                _suiteToken = null;
+                Logger.Warning("Suite token refresh failed for role {Role}: {Message}", resolvedRole, ex.Message);
+                _suiteTokens[resolvedRole] = null;
                 ApiSessionContext.Current.ClearToken();
+                ApiSessionContext.Current.ClearStoredCredentials();
             }
         }
         finally
         {
             _suiteLock.Release();
         }
+    }
+
+    private async Task PrimeRoleSuiteTokenAsync(string role)
+    {
+        try
+        {
+            var suiteRoleCredentials = ResolveRoleCredentials(role);
+            _suiteCredentialsByRole[role] = (suiteRoleCredentials.Email, suiteRoleCredentials.Password);
+            _suiteTokens[role] = await SharedAuthClient.LoginAsync(
+                suiteRoleCredentials.Email,
+                suiteRoleCredentials.Password,
+                tokenScenario: "valid",
+                tokenState: true);
+
+            Logger.Information("Suite login succeeded for role {Role}. Token valid until {ExpiresAt}.", role, _suiteTokens[role]?.ExpiresAt);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Logger.Warning("Suite login failed for role {Role}. Positive tests for that role will proceed without a pre-loaded token. Error: {Message}", role, ex.Message);
+            _suiteTokens[role] = null;
+        }
+    }
+
+    private bool TryGetCachedSuiteToken(string email, string password, out TokenState? token)
+    {
+        foreach (var entry in _suiteCredentialsByRole)
+        {
+            if (!string.Equals(entry.Value.Email, email, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(entry.Value.Password, password, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            token = _suiteTokens.GetValueOrDefault(entry.Key);
+            return token is not null;
+        }
+
+        token = null;
+        return false;
     }
 
     protected JObject BuildPayload(JObject template, IDictionary<string, JToken>? variables = null)
@@ -695,7 +774,7 @@ public abstract class APITestBase : AllureTestBase
 
 public sealed class LoginDataModel
 {
-    public CredentialsModel ValidCredentials { get; set; } = new();
+    public Dictionary<string, CredentialsModel> Roles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public CredentialsModel WrongPasswordScenario { get; set; } = new();
     public ApiAuthData ApiAuth { get; set; } = new();
 
