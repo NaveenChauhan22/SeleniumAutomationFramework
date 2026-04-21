@@ -24,10 +24,10 @@ public class LoginTests : BaseTest
     }
 
     [Test]
-    [TestCase("user")]
-    [TestCase("admin")]
-    [TestCase("organizer")]
-    [TestCase("viewer")]
+    [TestCase("user", Category = "user")]
+    [TestCase("admin", Category = "admin")]
+    [TestCase("organizer", Category = "organizer")]
+    [TestCase("viewer", Category = "viewer")]
     [Category("High")]
     [Category("Smoke")]
     [Priority(TestPriority.High)]

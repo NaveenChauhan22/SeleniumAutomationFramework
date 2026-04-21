@@ -3,9 +3,11 @@
 # Pull requests execute smoke tests only (Category=High&Category=Smoke) for fast feedback.
 # Push to main/develop executes the full test suite across all browsers.
 #
-# Required pipeline variables (set in Azure DevOps → Library or Pipeline Variables):
-#   TEST_USER_EMAIL    — test account email (mark as secret)
-#   TEST_USER_PASSWORD — test account password (mark as secret)
+# Role credential variables (set in Azure DevOps → Library or Pipeline Variables):
+#   TEST_USER_EMAIL / TEST_USER_PASSWORD
+#   TEST_ADMIN_EMAIL / TEST_ADMIN_PASSWORD
+#   TEST_ORGANIZER_EMAIL / TEST_ORGANIZER_PASSWORD
+#   TEST_VIEWER_EMAIL / TEST_VIEWER_PASSWORD
 
 trigger:
   branches:
@@ -79,14 +81,60 @@ stages:
 
           - script: |
               if [ "$(Build.Reason)" = "PullRequest" ]; then
-                dotnet test tests/APITests/APITests.csproj --no-build --configuration $(buildConfiguration) --filter "Category=High&Category=Smoke"
+                COMMON_FILTER="Category=High&Category=Smoke"
               else
-                dotnet test tests/APITests/APITests.csproj --no-build --configuration $(buildConfiguration)
+                COMMON_FILTER=""
               fi
+
+              ROLES=(user admin organizer viewer)
+              AVAILABLE_ROLES=()
+              for role in "${ROLES[@]}"; do
+                prefix=$(echo "$role" | tr '[:lower:]' '[:upper:]')
+                email_var="TEST_${prefix}_EMAIL"
+                password_var="TEST_${prefix}_PASSWORD"
+                email_value="${!email_var}"
+                password_value="${!password_var}"
+                if [ -n "$email_value" ] && [ -n "$password_value" ]; then
+                  AVAILABLE_ROLES+=("$role")
+                fi
+              done
+
+              if [ ${#AVAILABLE_ROLES[@]} -eq 0 ]; then
+                echo "No role credentials configured. Set at least one TEST_<ROLE>_EMAIL/TEST_<ROLE>_PASSWORD pair."
+                exit 1
+              fi
+
+              echo "Available roles: ${AVAILABLE_ROLES[*]}"
+
+              ROLE_AGNOSTIC_FILTER="Category!=user&Category!=admin&Category!=organizer&Category!=viewer"
+              if [ -n "$COMMON_FILTER" ]; then
+                FILTER="$ROLE_AGNOSTIC_FILTER&$COMMON_FILTER"
+              else
+                FILTER="$ROLE_AGNOSTIC_FILTER"
+              fi
+              echo "Running role-agnostic API tests with filter: $FILTER"
+              dotnet test tests/APITests/APITests.csproj --no-build --configuration $(buildConfiguration) --filter "$FILTER"
+
+              for role in "${AVAILABLE_ROLES[@]}"; do
+                ROLE_FILTER="Category=$role"
+                if [ -n "$COMMON_FILTER" ]; then
+                  FILTER="$ROLE_FILTER&$COMMON_FILTER"
+                else
+                  FILTER="$ROLE_FILTER"
+                fi
+                echo "Running API tests for role '$role' with filter: $FILTER"
+                TEST_EXECUTION_ROLE="$role" dotnet test tests/APITests/APITests.csproj --no-build --configuration $(buildConfiguration) --filter "$FILTER"
+              done
             displayName: Run API Tests
             env:
               TEST_USER_EMAIL: $(TEST_USER_EMAIL)
               TEST_USER_PASSWORD: $(TEST_USER_PASSWORD)
+              TEST_ADMIN_EMAIL: $(TEST_ADMIN_EMAIL)
+              TEST_ADMIN_PASSWORD: $(TEST_ADMIN_PASSWORD)
+              TEST_ORGANIZER_EMAIL: $(TEST_ORGANIZER_EMAIL)
+              TEST_ORGANIZER_PASSWORD: $(TEST_ORGANIZER_PASSWORD)
+              TEST_VIEWER_EMAIL: $(TEST_VIEWER_EMAIL)
+              TEST_VIEWER_PASSWORD: $(TEST_VIEWER_PASSWORD)
 
           - task: PublishPipelineArtifact@1
             displayName: Upload Allure Results
@@ -121,14 +169,60 @@ stages:
 
           - script: |
               if [ "$(Build.Reason)" = "PullRequest" ]; then
-                dotnet test tests/UITests/UITests.csproj --no-build --configuration $(buildConfiguration) --filter "Category=High&Category=Smoke"
+                COMMON_FILTER="Category=High&Category=Smoke"
               else
-                dotnet test tests/UITests/UITests.csproj --no-build --configuration $(buildConfiguration)
+                COMMON_FILTER=""
               fi
+
+              ROLES=(user admin organizer viewer)
+              AVAILABLE_ROLES=()
+              for role in "${ROLES[@]}"; do
+                prefix=$(echo "$role" | tr '[:lower:]' '[:upper:]')
+                email_var="TEST_${prefix}_EMAIL"
+                password_var="TEST_${prefix}_PASSWORD"
+                email_value="${!email_var}"
+                password_value="${!password_var}"
+                if [ -n "$email_value" ] && [ -n "$password_value" ]; then
+                  AVAILABLE_ROLES+=("$role")
+                fi
+              done
+
+              if [ ${#AVAILABLE_ROLES[@]} -eq 0 ]; then
+                echo "No role credentials configured. Set at least one TEST_<ROLE>_EMAIL/TEST_<ROLE>_PASSWORD pair."
+                exit 1
+              fi
+
+              echo "Available roles: ${AVAILABLE_ROLES[*]}"
+
+              ROLE_AGNOSTIC_FILTER="Category!=user&Category!=admin&Category!=organizer&Category!=viewer"
+              if [ -n "$COMMON_FILTER" ]; then
+                FILTER="$ROLE_AGNOSTIC_FILTER&$COMMON_FILTER"
+              else
+                FILTER="$ROLE_AGNOSTIC_FILTER"
+              fi
+              echo "Running role-agnostic UI tests with filter: $FILTER"
+              dotnet test tests/UITests/UITests.csproj --no-build --configuration $(buildConfiguration) --filter "$FILTER"
+
+              for role in "${AVAILABLE_ROLES[@]}"; do
+                ROLE_FILTER="Category=$role"
+                if [ -n "$COMMON_FILTER" ]; then
+                  FILTER="$ROLE_FILTER&$COMMON_FILTER"
+                else
+                  FILTER="$ROLE_FILTER"
+                fi
+                echo "Running UI tests for role '$role' with filter: $FILTER"
+                TEST_EXECUTION_ROLE="$role" dotnet test tests/UITests/UITests.csproj --no-build --configuration $(buildConfiguration) --filter "$FILTER"
+              done
             displayName: Run UI Tests — $(browser)
             env:
               TEST_USER_EMAIL: $(TEST_USER_EMAIL)
               TEST_USER_PASSWORD: $(TEST_USER_PASSWORD)
+              TEST_ADMIN_EMAIL: $(TEST_ADMIN_EMAIL)
+              TEST_ADMIN_PASSWORD: $(TEST_ADMIN_PASSWORD)
+              TEST_ORGANIZER_EMAIL: $(TEST_ORGANIZER_EMAIL)
+              TEST_ORGANIZER_PASSWORD: $(TEST_ORGANIZER_PASSWORD)
+              TEST_VIEWER_EMAIL: $(TEST_VIEWER_EMAIL)
+              TEST_VIEWER_PASSWORD: $(TEST_VIEWER_PASSWORD)
               TestSettings__Browser: $(browser)
               TestSettings__Headless: 'true'
 

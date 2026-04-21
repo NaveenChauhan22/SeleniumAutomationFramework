@@ -439,7 +439,7 @@ Why this step: Sequential mode is easier to debug when failures are hard to repr
 | `allure` command not found | Install Allure CLI and verify with `allure --version` |
 | Allure works but output is inconsistent | Check `allure --version`; prefer CLI 2.x for this framework |
 | `Unknown Syntax Error: Command not found` for Allure | Use full command: `allure generate .\reports\allure-results -o .\reports\allure-report --clean` |
-| Tests fail with auth/credential error | Check `.env` values for `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` |
+| Tests fail with auth/credential error | Check role credentials for the tests being executed (for example `TEST_USER_*`, `TEST_ADMIN_*`, `TEST_ORGANIZER_*`, `TEST_VIEWER_*`) |
 | `.env` exists but credentials still missing | Ensure file is exactly `.env` (not `.env.txt`) in repository root |
 | Wrong browser opens | Check `TestSettings__Browser` in `.env` and active terminal variables |
 | Driver startup fails on first run | Ensure browser is installed and first-time driver download is allowed |
@@ -511,3 +511,29 @@ When to set it to `true`: Only temporarily, on your local machine, when an API t
 - For day-to-day manual usage, sections 1 to 8 are enough.
 
 Why this section: Keep advanced engineering details separate from everyday execution flow.
+
+### 9.1 CI/Nightly Role-Aware Execution
+
+The CI and nightly pipelines are role-aware and no longer depend on `TEST_USER_*` only.
+
+How role selection works:
+1. Pipelines detect available credential pairs: `TEST_<ROLE>_EMAIL` + `TEST_<ROLE>_PASSWORD`.
+2. They run a role-agnostic slice once using `Category!=user&Category!=admin&Category!=organizer&Category!=viewer`.
+3. They run role-tagged slices only for available roles.
+4. They fail only when no role credential pair is configured.
+
+Supported role secret pairs:
+- `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`
+- `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD`
+- `TEST_ORGANIZER_EMAIL` / `TEST_ORGANIZER_PASSWORD`
+- `TEST_VIEWER_EMAIL` / `TEST_VIEWER_PASSWORD`
+
+Behavior examples:
+- Only organizer secrets configured: organizer-tagged tests and role-agnostic tests run; user/admin/viewer-tagged tests are skipped.
+- User + admin configured: both role slices run, plus role-agnostic tests.
+- None configured: pipeline fails fast with a credential configuration error.
+
+Workflow files:
+- GitHub CI: [.github/workflows/ci.yml](../.github/workflows/ci.yml)
+- GitHub Nightly: [.github/workflows/nightly.yml](../.github/workflows/nightly.yml)
+- Azure Pipelines: [ci/azure-pipelines.yml](../ci/azure-pipelines.yml)

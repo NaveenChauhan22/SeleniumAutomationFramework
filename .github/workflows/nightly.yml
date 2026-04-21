@@ -82,14 +82,61 @@ jobs:
         env:
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_ORGANIZER_EMAIL }}
+          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_ORGANIZER_PASSWORD }}
+          TEST_VIEWER_EMAIL: ${{ secrets.TEST_VIEWER_EMAIL }}
+          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_VIEWER_PASSWORD }}
           SUITE: ${{ github.event.inputs.suite || 'full' }}
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
           if [ "$SUITE" = "smoke" ]; then
-            dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "Category=High&Category=Smoke"
+            COMMON_FILTER="Category=High&Category=Smoke"
           else
-            dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
+            COMMON_FILTER=""
           fi
+
+          ROLES=(user admin organizer viewer)
+          AVAILABLE_ROLES=()
+          for role in "${ROLES[@]}"; do
+            prefix=$(echo "$role" | tr '[:lower:]' '[:upper:]')
+            email_var="TEST_${prefix}_EMAIL"
+            password_var="TEST_${prefix}_PASSWORD"
+            email_value="${!email_var}"
+            password_value="${!password_var}"
+            if [ -n "$email_value" ] && [ -n "$password_value" ]; then
+              AVAILABLE_ROLES+=("$role")
+            fi
+          done
+
+          if [ ${#AVAILABLE_ROLES[@]} -eq 0 ]; then
+            echo "::error::No role credentials configured. Set at least one TEST_<ROLE>_EMAIL/TEST_<ROLE>_PASSWORD pair."
+            exit 1
+          fi
+
+          echo "Running API suite: $SUITE"
+          echo "Available roles: ${AVAILABLE_ROLES[*]}"
+
+          ROLE_AGNOSTIC_FILTER="Category!=user&Category!=admin&Category!=organizer&Category!=viewer"
+          if [ -n "$COMMON_FILTER" ]; then
+            FILTER="$ROLE_AGNOSTIC_FILTER&$COMMON_FILTER"
+          else
+            FILTER="$ROLE_AGNOSTIC_FILTER"
+          fi
+          echo "Running role-agnostic API tests with filter: $FILTER"
+          dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+
+          for role in "${AVAILABLE_ROLES[@]}"; do
+            ROLE_FILTER="Category=$role"
+            if [ -n "$COMMON_FILTER" ]; then
+              FILTER="$ROLE_FILTER&$COMMON_FILTER"
+            else
+              FILTER="$ROLE_FILTER"
+            fi
+            echo "Running API tests for role '$role' with filter: $FILTER"
+            TEST_EXECUTION_ROLE="$role" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+          done
 
           echo "API Allure result files:"
           find .ci/allure-results-api -type f | wc -l
@@ -157,24 +204,63 @@ jobs:
         env:
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_ORGANIZER_EMAIL }}
+          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_ORGANIZER_PASSWORD }}
+          TEST_VIEWER_EMAIL: ${{ secrets.TEST_VIEWER_EMAIL }}
+          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_VIEWER_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           SUITE: ${{ github.event.inputs.suite || 'full' }}
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
-          # Smoke runs use smoke filter; full runs execute all UI tests.
           if [ "$SUITE" = "smoke" ]; then
-            FILTER="Category=High&Category=Smoke"
+            COMMON_FILTER="Category=High&Category=Smoke"
           else
-            FILTER=""
+            COMMON_FILTER=""
           fi
 
-          echo "Running UI suite: $SUITE on browser ${{ matrix.browser }}, filter: ${FILTER:-none}"
-          if [ -n "$FILTER" ]; then
-            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
-          else
-            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
+          ROLES=(user admin organizer viewer)
+          AVAILABLE_ROLES=()
+          for role in "${ROLES[@]}"; do
+            prefix=$(echo "$role" | tr '[:lower:]' '[:upper:]')
+            email_var="TEST_${prefix}_EMAIL"
+            password_var="TEST_${prefix}_PASSWORD"
+            email_value="${!email_var}"
+            password_value="${!password_var}"
+            if [ -n "$email_value" ] && [ -n "$password_value" ]; then
+              AVAILABLE_ROLES+=("$role")
+            fi
+          done
+
+          if [ ${#AVAILABLE_ROLES[@]} -eq 0 ]; then
+            echo "::error::No role credentials configured. Set at least one TEST_<ROLE>_EMAIL/TEST_<ROLE>_PASSWORD pair."
+            exit 1
           fi
+
+          echo "Running UI suite: $SUITE on browser ${{ matrix.browser }}"
+          echo "Available roles: ${AVAILABLE_ROLES[*]}"
+
+          ROLE_AGNOSTIC_FILTER="Category!=user&Category!=admin&Category!=organizer&Category!=viewer"
+          if [ -n "$COMMON_FILTER" ]; then
+            FILTER="$ROLE_AGNOSTIC_FILTER&$COMMON_FILTER"
+          else
+            FILTER="$ROLE_AGNOSTIC_FILTER"
+          fi
+          echo "Running role-agnostic UI tests with filter: $FILTER"
+          dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+
+          for role in "${AVAILABLE_ROLES[@]}"; do
+            ROLE_FILTER="Category=$role"
+            if [ -n "$COMMON_FILTER" ]; then
+              FILTER="$ROLE_FILTER&$COMMON_FILTER"
+            else
+              FILTER="$ROLE_FILTER"
+            fi
+            echo "Running UI tests for role '$role' with filter: $FILTER"
+            TEST_EXECUTION_ROLE="$role" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+          done
 
           echo "UI (${{ matrix.browser }}) Allure result files:"
           find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l
@@ -184,6 +270,12 @@ jobs:
         env:
           TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_ORGANIZER_EMAIL }}
+          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_ORGANIZER_PASSWORD }}
+          TEST_VIEWER_EMAIL: ${{ secrets.TEST_VIEWER_EMAIL }}
+          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_VIEWER_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}\.ci\allure-results-ui-${{ matrix.browser }}
@@ -191,18 +283,49 @@ jobs:
         run: |
           $suite = "${{ github.event.inputs.suite }}"
           if (-not $suite) { $suite = "full" }
-          # Smoke runs use smoke filter; full runs execute all UI tests.
           if ($suite -eq "smoke") {
-            $filter = "Category=High&Category=Smoke"
+            $commonFilter = "Category=High&Category=Smoke"
           } else {
-            $filter = ""
+            $commonFilter = ""
           }
 
-          Write-Host "Running UI suite: $suite on browser ${{ matrix.browser }}, filter: $(if($filter){$filter}else{'none'})"
-          if ($filter) {
-            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$filter"
+          $roles = @('user', 'admin', 'organizer', 'viewer')
+          $availableRoles = @()
+          foreach ($role in $roles) {
+            $prefix = $role.ToUpperInvariant()
+            $email = [Environment]::GetEnvironmentVariable("TEST_${prefix}_EMAIL")
+            $password = [Environment]::GetEnvironmentVariable("TEST_${prefix}_PASSWORD")
+            if (-not [string]::IsNullOrWhiteSpace($email) -and -not [string]::IsNullOrWhiteSpace($password)) {
+              $availableRoles += $role
+            }
+          }
+
+          if ($availableRoles.Count -eq 0) {
+            throw "No role credentials configured. Set at least one TEST_<ROLE>_EMAIL/TEST_<ROLE>_PASSWORD pair."
+          }
+
+          Write-Host "Running UI suite: $suite on browser ${{ matrix.browser }}"
+          Write-Host "Available roles: $($availableRoles -join ', ')"
+
+          $roleAgnosticFilter = "Category!=user&Category!=admin&Category!=organizer&Category!=viewer"
+          if ($commonFilter) {
+            $filter = "$roleAgnosticFilter&$commonFilter"
           } else {
-            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
+            $filter = $roleAgnosticFilter
+          }
+          Write-Host "Running role-agnostic UI tests with filter: $filter"
+          dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$filter"
+
+          foreach ($role in $availableRoles) {
+            $roleFilter = "Category=$role"
+            if ($commonFilter) {
+              $filter = "$roleFilter&$commonFilter"
+            } else {
+              $filter = $roleFilter
+            }
+            Write-Host "Running UI tests for role '$role' with filter: $filter"
+            $env:TEST_EXECUTION_ROLE = $role
+            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$filter"
           }
 
           Write-Host "UI (${{ matrix.browser }}) Allure result files:"
