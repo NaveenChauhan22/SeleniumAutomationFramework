@@ -73,11 +73,6 @@ jobs:
           dotnet restore
           dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
 
-      - name: Prepare Allure Results Directory
-        run: |
-          rm -rf .ci/allure-results-api
-          mkdir -p .ci/allure-results-api
-
       - name: Run API Tests
         env:
           TEST_SHARED_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
@@ -91,7 +86,6 @@ jobs:
           TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           SUITE: ${{ github.event.inputs.suite || 'full' }}
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
           if [ "$SUITE" = "smoke" ]; then
             COMMON_FILTER="Category=High&Category=Smoke"
@@ -140,8 +134,15 @@ jobs:
             TEST_EXECUTION_ROLE="$role" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
           done
 
+      - name: Prepare API Allure Artifacts
+        if: always()
+        run: |
+          mkdir -p .ci/allure-results-api
+          if [ -d "reports/allure-results" ]; then
+            cp -r reports/allure-results/* .ci/allure-results-api/ 2>/dev/null || true
+          fi
           echo "API Allure result files:"
-          find .ci/allure-results-api -type f | wc -l
+          find .ci/allure-results-api -type f | wc -l || echo "0"
 
       - name: Upload Allure Results
         if: always()
@@ -194,13 +195,6 @@ jobs:
           dotnet restore
           dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
 
-      - name: Prepare Allure Results Directory
-        shell: pwsh
-        run: |
-          $path = ".ci/allure-results-ui-${{ matrix.browser }}"
-          if (Test-Path $path) { Remove-Item $path -Recurse -Force }
-          New-Item -ItemType Directory -Force -Path $path | Out-Null
-
       - name: Run UI Tests — ${{ matrix.browser }} (Linux)
         if: runner.os == 'Linux'
         env:
@@ -217,7 +211,6 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           SUITE: ${{ github.event.inputs.suite || 'full' }}
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
           if [ "$SUITE" = "smoke" ]; then
             COMMON_FILTER="Category=High&Category=Smoke"
@@ -266,8 +259,15 @@ jobs:
             TEST_EXECUTION_ROLE="$role" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
           done
 
+      - name: Prepare UI Allure Artifacts (Linux)
+        if: always() && runner.os == 'Linux'
+        run: |
+          mkdir -p .ci/allure-results-ui-${{ matrix.browser }}
+          if [ -d "reports/allure-results" ]; then
+            cp -r reports/allure-results/* .ci/allure-results-ui-${{ matrix.browser }}/ 2>/dev/null || true
+          fi
           echo "UI (${{ matrix.browser }}) Allure result files:"
-          find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l
+          find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l || echo "0"
 
       - name: Run UI Tests — ${{ matrix.browser }} (Windows)
         if: runner.os == 'Windows'
@@ -284,7 +284,6 @@ jobs:
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}\.ci\allure-results-ui-${{ matrix.browser }}
         shell: pwsh
         run: |
           $suite = "${{ github.event.inputs.suite }}"
@@ -334,8 +333,17 @@ jobs:
             dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$filter"
           }
 
+      - name: Prepare UI Allure Artifacts (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $path = ".ci/allure-results-ui-${{ matrix.browser }}"
+          New-Item -ItemType Directory -Force -Path $path | Out-Null
+          if (Test-Path "reports/allure-results") {
+            Copy-Item -Path "reports/allure-results/*" -Destination $path -Recurse -Force -ErrorAction SilentlyContinue
+          }
           Write-Host "UI (${{ matrix.browser }}) Allure result files:"
-          (Get-ChildItem ".ci/allure-results-ui-${{ matrix.browser }}" -Recurse -File | Measure-Object).Count
+          (Get-ChildItem $path -Recurse -File | Measure-Object).Count
 
       - name: Upload Allure Results
         if: always()
