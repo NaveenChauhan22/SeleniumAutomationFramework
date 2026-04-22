@@ -89,6 +89,7 @@ jobs:
           TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           MANUAL_SUITE: ${{ github.event.inputs.suite }}
+          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
           if [ -n "$MANUAL_SUITE" ]; then
             SUITE="$MANUAL_SUITE"
@@ -147,15 +148,11 @@ jobs:
             TEST_EXECUTION_ROLE="$role" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
           done
 
-      - name: Prepare API Allure Artifacts
+      - name: Check API Allure Results
         if: always()
         run: |
-          mkdir -p .ci/allure-results-api
-          if [ -d "reports/allure-results" ]; then
-            cp -r reports/allure-results/* .ci/allure-results-api/ 2>/dev/null || true
-          fi
           echo "API Allure result files:"
-          find .ci/allure-results-api -type f | wc -l || echo "0"
+          find .ci/allure-results-api -type f 2>/dev/null | wc -l || echo "0"
 
       - name: Upload Allure Results
         if: always()
@@ -207,6 +204,7 @@ jobs:
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
+          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
           # CI requirement: always run the full UI suite.
           COMMON_FILTER=""
@@ -253,17 +251,7 @@ jobs:
           done
 
           echo "UI (${{ matrix.browser }}) Allure result files:"
-          find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l
-
-      - name: Prepare UI Allure Artifacts
-        if: always()
-        run: |
-          mkdir -p .ci/allure-results-ui-${{ matrix.browser }}
-          if [ -d "reports/allure-results" ]; then
-            cp -r reports/allure-results/* .ci/allure-results-ui-${{ matrix.browser }}/ 2>/dev/null || true
-          fi
-          echo "UI (${{ matrix.browser }}) Allure result files:"
-          find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l || echo "0"
+          find .ci/allure-results-ui-${{ matrix.browser }} -type f 2>/dev/null | wc -l || echo "0"
 
       - name: Upload Allure Results
         if: always()
