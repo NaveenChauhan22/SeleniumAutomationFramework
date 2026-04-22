@@ -4,8 +4,8 @@
 
 This document explains the current API auth design after the suite-level token update:
 
-- Positive flows reuse one suite token instead of logging in per test.
-- Suite token is refreshed only when it naturally expires.
+- Positive flows reuse per-role suite tokens instead of logging in per test.
+- Each role token is refreshed only when it naturally expires.
 - Negative flows keep full control and can intentionally disable refresh.
 
 See also:
@@ -39,10 +39,10 @@ Key flags/properties:
 Current fixture flow in `tests/APITests/ApiTestBase.cs`:
 
 1. `OneTimeSetUp` initializes clients and performs one valid login.
-2. Returned token is cached in private `_suiteToken`.
+2. Returned token is cached in private `_suiteTokens[role]`.
 3. Every `[SetUp]` calls `EnsureSuiteTokenAsync()`.
-4. `EnsureSuiteTokenAsync()` pushes `_suiteToken` into the current test context.
-5. If cached token is expired, it refreshes once under `_suiteLock` and updates cache.
+4. `EnsureSuiteTokenAsync()` pushes role token into the current test context.
+5. If cached role token is expired, it refreshes once under `_suiteLock` and updates that role cache.
 
 This removes repeated login calls from all positive tests.
 
@@ -98,12 +98,12 @@ Test fixture starts
          -> HTTP POST /login once
          -> receive token + expiresIn
          -> build TokenState(AllowRefresh=true)
-         -> cache in _suiteToken
+         -> cache in _suiteTokens[role]
 
 Each test start
     -> SetUp
          -> EnsureSuiteTokenAsync
-                -> if _suiteToken.IsValid: copy to ApiSessionContext.Current
+                 -> if _suiteTokens[role].IsValid: copy to ApiSessionContext.Current
 
 API call
     -> BaseApiClient.SendAsync(requiresAuth=true)
@@ -117,11 +117,11 @@ API call
 ```
 SetUp
     -> EnsureSuiteTokenAsync
-         -> detects !_suiteToken.IsValid
+         -> detects !_suiteTokens[role].IsValid
          -> acquires _suiteLock (single refresh winner)
          -> re-checks validity after lock
          -> HTTP POST /login once
-         -> replaces _suiteToken with fresh token
+         -> replaces _suiteTokens[role] with fresh token
          -> writes fresh token into ApiSessionContext.Current
 ```
 
@@ -144,7 +144,7 @@ Because negative tokens are intentionally non-refreshable, framework behavior st
 ## 6. Why This Design Is Cost-Efficient
 
 - Before: positive tests performed repeated logins.
-- Now: one login per fixture, plus refresh only when actually expired.
+- Now: one login per role per fixture, plus refresh only when actually expired.
 - Parallel-safe refresh lock prevents stampede login calls.
 - Negative tests still control token state explicitly.
 

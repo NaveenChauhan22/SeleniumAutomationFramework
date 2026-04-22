@@ -245,15 +245,102 @@ Why this step: Sanity tests validate important but broader functionality after s
 
 **Windows (PowerShell):**
 ```powershell
-dotnet test .\tests\UITests\UITests.csproj --filter "Name=Login_WithValidCredentials"
+dotnet test .\tests\UITests\UITests.csproj --filter "Name=Login_WithConfiguredRoleCredentials_ShouldAuthenticate"
 ```
 
 **macOS (Terminal):**
 ```bash
-dotnet test ./tests/UITests/UITests.csproj --filter "Name=Login_WithValidCredentials"
+dotnet test ./tests/UITests/UITests.csproj --filter "Name=Login_WithConfiguredRoleCredentials_ShouldAuthenticate"
 ```
 
 Why this step: This is useful for quick re-check of a single failed test.
+
+Note: this test is parameterized with multiple role test cases.
+
+### Step 4: Run Role + Smoke Filter (Optional)
+
+**Windows (PowerShell):**
+```powershell
+$env:TEST_EXECUTION_ROLE = "admin"
+dotnet test .\SeleniumAutomationFramework.sln --filter "Category=admin&Category=Smoke"
+```
+
+**macOS (Terminal):**
+```bash
+export TEST_EXECUTION_ROLE=admin
+dotnet test ./SeleniumAutomationFramework.sln --filter "Category=admin&Category=Smoke"
+```
+
+Why this step: `TestRole` is now an NUnit category, so role and smoke can be filtered together.
+
+---
+
+## 4A. Role-Based Execution
+
+Use this section to run tests for a specific role or mixed-role suite.
+This section includes both role execution commands and role-resolution rules in one place.
+
+`[TestRole("...")]` is also an NUnit category, so role and test-type filters can be combined.
+
+Role resolution order:
+1. Method-level `[TestRole("...")]`
+2. Class-level `[TestRole("...")]`
+3. `TEST_EXECUTION_ROLE` environment variable
+4. Fail fast if no role is available for auth-dependent tests
+
+Credential lookup order for selected role:
+1. `TEST_{ROLE}_EMAIL` and `TEST_{ROLE}_PASSWORD`
+2. `roles.{role}` in `resources/testdata/loginData.json`
+3. Fail with clear setup error if missing/incomplete
+
+Supported default role keys: `user`, `admin`, `organizer`, `viewer`.
+
+### Run User Role + Smoke Category
+
+**Windows (PowerShell):**
+```powershell
+$env:TEST_EXECUTION_ROLE = "user"
+dotnet test .\SeleniumAutomationFramework.sln --filter "Category=user&Category=Smoke"
+```
+
+**macOS (Terminal):**
+```bash
+export TEST_EXECUTION_ROLE=user
+dotnet test ./SeleniumAutomationFramework.sln --filter "Category=user&Category=Smoke"
+```
+
+### Run Admin Role + Smoke Category
+
+**Windows (PowerShell):**
+```powershell
+$env:TEST_EXECUTION_ROLE = "admin"
+dotnet test .\SeleniumAutomationFramework.sln --filter "Category=admin&Category=Smoke"
+```
+
+**macOS (Terminal):**
+```bash
+export TEST_EXECUTION_ROLE=admin
+dotnet test ./SeleniumAutomationFramework.sln --filter "Category=admin&Category=Smoke"
+```
+
+### Run Admin Role + Smoke + API Auth Name Pattern
+
+**Windows (PowerShell):**
+```powershell
+$env:TEST_EXECUTION_ROLE = "admin"
+dotnet test .\tests\APITests\APITests.csproj --filter "Category=admin&Category=Smoke&FullyQualifiedName~Auth"
+```
+
+**macOS (Terminal):**
+```bash
+export TEST_EXECUTION_ROLE=admin
+dotnet test ./tests/APITests/APITests.csproj --filter "Category=admin&Category=Smoke&FullyQualifiedName~Auth"
+```
+
+### Mixed-Role in a Single Run
+
+If tests are annotated with `[TestRole("user")]` and `[TestRole("admin")]`, one `dotnet test` run will execute them under their declared roles.
+`TEST_EXECUTION_ROLE` still acts as credential fallback for tests that do not declare a role.
 
 ---
 
@@ -352,7 +439,7 @@ Why this step: Sequential mode is easier to debug when failures are hard to repr
 | `allure` command not found | Install Allure CLI and verify with `allure --version` |
 | Allure works but output is inconsistent | Check `allure --version`; prefer CLI 2.x for this framework |
 | `Unknown Syntax Error: Command not found` for Allure | Use full command: `allure generate .\reports\allure-results -o .\reports\allure-report --clean` |
-| Tests fail with auth/credential error | Check `.env` values for `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` |
+| Tests fail with auth/credential error | In CI/CD, verify `TEST_SHARED_EMAIL` and `TEST_SHARED_PASSWORD` are configured. For local runs, verify role-specific credentials or role test data are available. |
 | `.env` exists but credentials still missing | Ensure file is exactly `.env` (not `.env.txt`) in repository root |
 | Wrong browser opens | Check `TestSettings__Browser` in `.env` and active terminal variables |
 | Driver startup fails on first run | Ensure browser is installed and first-time driver download is allowed |
@@ -424,3 +511,30 @@ When to set it to `true`: Only temporarily, on your local machine, when an API t
 - For day-to-day manual usage, sections 1 to 8 are enough.
 
 Why this section: Keep advanced engineering details separate from everyday execution flow.
+
+### 9.1 CI/Nightly Role-Aware Execution
+
+The CI and nightly pipelines are role-aware and use a shared secret pair mapped to all supported roles.
+
+How role selection works:
+1. Pipelines map shared secrets into role variables (`TEST_USER_*`, `TEST_ADMIN_*`, `TEST_ORGANIZER_*`, `TEST_VIEWER_*`).
+2. They run a role-agnostic slice once using `Category!=user&Category!=admin&Category!=organizer&Category!=viewer`.
+3. They run role-tagged slices for all supported roles (`user`, `admin`, `organizer`, `viewer`).
+4. They fail fast when shared credentials are not configured.
+
+Required CI/CD shared secrets/variables:
+- `TEST_SHARED_EMAIL`
+- `TEST_SHARED_PASSWORD`
+
+Behavior examples:
+- Shared credentials configured: role-agnostic tests run, then all role slices run.
+- Shared credentials missing: pipeline fails with a credential configuration error.
+
+UI suite behavior in CI:
+- GitHub CI UI jobs run the full UI suite for each browser and each role slice.
+- Nightly keeps selectable suite behavior (`full` or `smoke`) when manually dispatched.
+
+Workflow files:
+- GitHub CI: [.github/workflows/ci.yml](../.github/workflows/ci.yml)
+- GitHub Nightly: [.github/workflows/nightly.yml](../.github/workflows/nightly.yml)
+- Azure Pipelines: [ci/azure-pipelines.yml](../ci/azure-pipelines.yml)

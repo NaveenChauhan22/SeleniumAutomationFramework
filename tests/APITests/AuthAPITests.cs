@@ -11,6 +11,7 @@ namespace APITests;
 [AllureParentSuite("APITests")]
 [AllureSuite("Authentication API")]
 [AllureFeature("Authentication")]
+[TestRole("user")]
 public class AuthAPITests : APITestBase
 {
     [Test]
@@ -41,11 +42,13 @@ public class AuthAPITests : APITestBase
     [Priority(TestPriority.Medium)]
     [AllureStory("Auth scenario: expired token")]
     [AllureSeverity(SeverityLevel.normal)]
+    [TestRole("user")]
     public async Task AuthScenario_ExpiredToken_ShouldFailProtectedEndpoint()
     {
+        var credentials = ResolveRoleCredentials();
         await LoginAsync(
-            LoginData.ValidCredentials.Email,
-            LoginData.ValidCredentials.Password,
+            credentials.Email,
+            credentials.Password,
             tokenScenario: "expired",
             tokenState: false);
 
@@ -60,11 +63,13 @@ public class AuthAPITests : APITestBase
     [Priority(TestPriority.Medium)]
     [AllureStory("Auth scenario: invalid token")]
     [AllureSeverity(SeverityLevel.normal)]
+    [TestRole("admin")]
     public async Task AuthScenario_InvalidToken_ShouldFailProtectedEndpoint()
     {
+        var credentials = ResolveRoleCredentials();
         await LoginAsync(
-            LoginData.ValidCredentials.Email,
-            LoginData.ValidCredentials.Password,
+            credentials.Email,
+            credentials.Password,
             tokenScenario: "invalid",
             tokenState: false);
 
@@ -81,9 +86,10 @@ public class AuthAPITests : APITestBase
     [AllureSeverity(SeverityLevel.normal)]
     public async Task AuthScenario_MissingToken_ShouldFailProtectedEndpoint()
     {
+        var credentials = ResolveRoleCredentials();
         await LoginAsync(
-            LoginData.ValidCredentials.Email,
-            LoginData.ValidCredentials.Password,
+            credentials.Email,
+            credentials.Password,
             tokenScenario: "missing",
             tokenState: false);
 
@@ -100,10 +106,11 @@ public class AuthAPITests : APITestBase
     [AllureSeverity(SeverityLevel.normal)]
     public void Login_WithTokenStateTrueAndExpiredScenario_ShouldThrow()
     {
+        var credentials = ResolveRoleCredentials();
         Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await LoginAsync(
-                LoginData.ValidCredentials.Email,
-                LoginData.ValidCredentials.Password,
+                credentials.Email,
+                credentials.Password,
                 tokenScenario: "expired",
                 tokenState: true));
     }
@@ -131,6 +138,7 @@ public class AuthAPITests : APITestBase
     [Priority(TestPriority.High)]
     [AllureStory("GET /api/auth/me")]
     [AllureSeverity(SeverityLevel.critical)]
+    [TestRole("admin")]
     public async Task MeEndpoint_WithValidToken_ShouldReturnCurrentUser()
     {
         // Positive flow should use the suite login from setup, not perform login in test body.
@@ -173,6 +181,7 @@ public class AuthAPITests : APITestBase
     [AllureSeverity(SeverityLevel.trivial)]
     public async Task AuthClientHelpers_DiagnosticSample_ShouldPrintConsoleOutput()
     {
+        var credentials = ResolveRoleCredentials();
         Assert.That(SharedAuthClient, Is.Not.Null, "SharedAuthClient should be initialized.");
 
         // Force a clean state so this sample does not depend on suite-level token preload.
@@ -208,8 +217,8 @@ public class AuthAPITests : APITestBase
 
         Console.WriteLine("=== LoginAsync (expired,false) ===");
         var configured = await LoginAsync(
-            LoginData.ValidCredentials.Email,
-            LoginData.ValidCredentials.Password,
+            credentials.Email,
+            credentials.Password,
             tokenScenario: "expired",
             tokenState: false);
 

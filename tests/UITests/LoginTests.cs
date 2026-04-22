@@ -24,15 +24,18 @@ public class LoginTests : BaseTest
     }
 
     [Test]
+    [TestCase("user", Category = "user")]
+    [TestCase("admin", Category = "admin")]
+    [TestCase("organizer", Category = "organizer")]
+    [TestCase("viewer", Category = "viewer")]
     [Category("High")]
     [Category("Smoke")]
     [Priority(TestPriority.High)]
-    [AllureStory("Valid user login")]
-    public void Login_WithValidCredentials()
+    [AllureStory("Role-based login")]
+    public void Login_WithConfiguredRoleCredentials_ShouldAuthenticate(string role)
     {
-        ReportHelper.AddStep("Entering valid credentials");
-        var loginPage = new LoginPage(Driver, Wait);
-        loginPage.LoginAs(_data.ValidCredentials.Email, _data.ValidCredentials.Password);
+        ReportHelper.AddStep($"Entering credentials for role '{role}'");
+        LoginAsRole(role, _data);
         ReportHelper.AddStep("Verifying home page and login status");
         var homePage = new HomePage(Driver, Wait);
 
@@ -126,7 +129,6 @@ public class LoginTests : BaseTest
     }
 
     [Test]
-    [Category("Medium")]
     [Category("Sanity")]
     [Priority(TestPriority.Low)]
     [AllureStory("Wrong password rejection")]
@@ -142,7 +144,6 @@ public class LoginTests : BaseTest
     }
 
     [Test]
-    [Category("Medium")]
     [Category("Sanity")]
     [Priority(TestPriority.Low)]
     [AllureStory("Unregistered email rejection")]

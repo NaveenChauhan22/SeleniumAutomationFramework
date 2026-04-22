@@ -55,7 +55,7 @@ Use PascalCase and meaningful names.
 
 Examples:
 
-LoginWithValidCredentials()  
+LoginWithUserRoleCredentials()  
 CreateOrderSuccessfully()  
 NavigateToCheckout()
 
@@ -165,7 +165,7 @@ Each test should validate one logical scenario.
 
 Good example:
 
-Login_WithValidCredentials_ShouldNavigateToDashboard()
+Login_WithConfiguredRoleCredentials_ShouldAuthenticate()
 
 Avoid large end‑to‑end tests covering many flows.
 

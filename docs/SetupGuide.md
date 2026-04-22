@@ -304,19 +304,68 @@ Why this step: .env stores your local credentials without changing source code.
 
 ### Step 2: Add Your Test Credentials in .env
 
-Update the file with your valid test account values:
+Update the file with the role credentials you plan to execute:
 
 ```bash
 TEST_USER_EMAIL=your_test_email@example.com
 TEST_USER_PASSWORD=your_test_password
+TEST_ADMIN_EMAIL=your_admin_email@example.com
+TEST_ADMIN_PASSWORD=your_admin_password
+TEST_ORGANIZER_EMAIL=your_organizer_email@example.com
+TEST_ORGANIZER_PASSWORD=your_organizer_password
+TEST_VIEWER_EMAIL=your_viewer_email@example.com
+TEST_VIEWER_PASSWORD=your_viewer_password
 ```
 
-Why this step: Tests read these values at runtime to log in.
+Why this step: tests validate credentials per resolved role, so only the role(s) you run must be configured.
+
+If all roles use the same account, you can reuse the same email/password values for every role entry.
+
+Optional runtime role selector:
+
+```bash
+TEST_EXECUTION_ROLE=user
+```
+
+If not set, role can still be declared with `[TestRole("user")]` or `[TestRole("admin")]` in tests.
 
 ### Step 3: Understand Security Rule
 
 - Never commit .env to source control.
 - Keep only test credentials, never production credentials.
+
+### Step 4: Configure Shared CI/CD Credentials
+
+CI/CD pipelines can use one shared credential pair and map it to all role variables at runtime.
+
+GitHub Actions secrets to create:
+
+```text
+TEST_SHARED_EMAIL
+TEST_SHARED_PASSWORD
+```
+
+Azure Pipelines variables to create:
+
+```text
+TEST_SHARED_EMAIL
+TEST_SHARED_PASSWORD
+```
+
+Why this step: It avoids duplicated secret management while preserving role-based test execution in pipelines.
+
+---
+
+## 4. Role Execution Readiness
+
+Before running role-based tests, verify:
+- `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` are present for user-tagged tests.
+- `TEST_ADMIN_EMAIL` and `TEST_ADMIN_PASSWORD` are present for admin-tagged tests.
+- `TEST_ORGANIZER_EMAIL` and `TEST_ORGANIZER_PASSWORD` are present for organizer-tagged tests.
+- `TEST_VIEWER_EMAIL` and `TEST_VIEWER_PASSWORD` are present for viewer-tagged tests.
+- If you want one role across a full run, set `TEST_EXECUTION_ROLE` in the shell before `dotnet test`.
+
+For complete role execution examples, see [ExecutionGuide.md](./ExecutionGuide.md#4a-role-based-execution).
 
 Why this step: This prevents accidental credential exposure.
 
@@ -502,7 +551,7 @@ Fallback option:
 | HTML report opens but looks generic | This framework also produces a separate execution HTML report. To view Allure, generate from `reports/allure-results` and open `reports/allure-report/index.html` |
 | `java` command not found | Install Java first, then reinstall/verify Allure |
 | Allure installed but fails to run | Verify `java -version` and ensure Java is on PATH |
-| Login test fails with missing credentials | Confirm `.env` exists and has `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` |
+| Login test fails with missing credentials | Confirm `.env` has the credential pair for the role under test (`TEST_USER_*`, `TEST_ADMIN_*`, `TEST_ORGANIZER_*`, or `TEST_VIEWER_*`) |
 | Credentials still not loaded though `.env` exists | Ensure file is named exactly `.env` and saved in repository root |
 | Wrong browser opens | Check `TestSettings__Browser` in `.env` and terminal overrides |
 | Browser/driver startup fails on first run | Ensure browser is installed and internet access allows first-time driver download |

@@ -12,6 +12,7 @@ namespace APITests;
 [AllureParentSuite("APITests")]
 [AllureSuite("Bookings API")]
 [AllureFeature("Bookings")]
+[TestRole("user")]
 public class BookingsAPITests : APITestBase
 {
     [Test]

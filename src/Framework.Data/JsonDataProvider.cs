@@ -70,7 +70,8 @@ public static class JsonDataProvider
             throw new InvalidOperationException(
                 $"Environment variable '{variableName}' not found and no default value provided. " +
                 $"Please set the environment variable '{variableName}' before running tests. " +
-                $"For validCredentials in loginData.json, use: TEST_USER_EMAIL, TEST_USER_PASSWORD");
+                "For role-based login data, configure TEST_<ROLE>_EMAIL and TEST_<ROLE>_PASSWORD " +
+                "for the role(s) used by the tests you are running.");
         });
     }
 }
