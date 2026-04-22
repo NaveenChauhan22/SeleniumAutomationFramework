@@ -255,8 +255,6 @@ jobs:
           echo "UI (${{ matrix.browser }}) Allure result files:"
           find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l
 
-      - name: Upload Allure Results
-        if: always()
       - name: Prepare UI Allure Artifacts
         if: always()
         run: |
@@ -266,6 +264,11 @@ jobs:
           fi
           echo "UI (${{ matrix.browser }}) Allure result files:"
           find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l || echo "0"
+
+      - name: Upload Allure Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
           name: allure-results-ui-${{ matrix.browser }}
           path: .ci/allure-results-ui-${{ matrix.browser }}/
           retention-days: 7
