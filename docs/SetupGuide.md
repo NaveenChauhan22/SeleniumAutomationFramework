@@ -319,6 +319,8 @@ TEST_VIEWER_PASSWORD=your_viewer_password
 
 Why this step: tests validate credentials per resolved role, so only the role(s) you run must be configured.
 
+If all roles use the same account, you can reuse the same email/password values for every role entry.
+
 Optional runtime role selector:
 
 ```bash
@@ -331,6 +333,26 @@ If not set, role can still be declared with `[TestRole("user")]` or `[TestRole("
 
 - Never commit .env to source control.
 - Keep only test credentials, never production credentials.
+
+### Step 4: Configure Shared CI/CD Credentials
+
+CI/CD pipelines can use one shared credential pair and map it to all role variables at runtime.
+
+GitHub Actions secrets to create:
+
+```text
+TEST_SHARED_EMAIL
+TEST_SHARED_PASSWORD
+```
+
+Azure Pipelines variables to create:
+
+```text
+TEST_SHARED_EMAIL
+TEST_SHARED_PASSWORD
+```
+
+Why this step: It avoids duplicated secret management while preserving role-based test execution in pipelines.
 
 ---
 

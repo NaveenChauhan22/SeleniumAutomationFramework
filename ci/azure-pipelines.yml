@@ -3,11 +3,9 @@
 # Pull requests execute smoke tests only (Category=High&Category=Smoke) for fast feedback.
 # Push to main/develop executes the full test suite across all browsers.
 #
-# Role credential variables (set in Azure DevOps → Library or Pipeline Variables):
-#   TEST_USER_EMAIL / TEST_USER_PASSWORD
-#   TEST_ADMIN_EMAIL / TEST_ADMIN_PASSWORD
-#   TEST_ORGANIZER_EMAIL / TEST_ORGANIZER_PASSWORD
-#   TEST_VIEWER_EMAIL / TEST_VIEWER_PASSWORD
+# Shared credential variables (set in Azure DevOps → Library or Pipeline Variables):
+#   TEST_SHARED_EMAIL / TEST_SHARED_PASSWORD
+# These are mapped to all role-specific env vars at runtime.
 
 trigger:
   branches:
@@ -127,14 +125,16 @@ stages:
               done
             displayName: Run API Tests
             env:
-              TEST_USER_EMAIL: $(TEST_USER_EMAIL)
-              TEST_USER_PASSWORD: $(TEST_USER_PASSWORD)
-              TEST_ADMIN_EMAIL: $(TEST_ADMIN_EMAIL)
-              TEST_ADMIN_PASSWORD: $(TEST_ADMIN_PASSWORD)
-              TEST_ORGANIZER_EMAIL: $(TEST_ORGANIZER_EMAIL)
-              TEST_ORGANIZER_PASSWORD: $(TEST_ORGANIZER_PASSWORD)
-              TEST_VIEWER_EMAIL: $(TEST_VIEWER_EMAIL)
-              TEST_VIEWER_PASSWORD: $(TEST_VIEWER_PASSWORD)
+              TEST_SHARED_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_SHARED_PASSWORD: $(TEST_SHARED_PASSWORD)
+              TEST_USER_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_USER_PASSWORD: $(TEST_SHARED_PASSWORD)
+              TEST_ADMIN_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_ADMIN_PASSWORD: $(TEST_SHARED_PASSWORD)
+              TEST_ORGANIZER_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_ORGANIZER_PASSWORD: $(TEST_SHARED_PASSWORD)
+              TEST_VIEWER_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_VIEWER_PASSWORD: $(TEST_SHARED_PASSWORD)
 
           - task: PublishPipelineArtifact@1
             displayName: Upload Allure Results
@@ -215,14 +215,16 @@ stages:
               done
             displayName: Run UI Tests — $(browser)
             env:
-              TEST_USER_EMAIL: $(TEST_USER_EMAIL)
-              TEST_USER_PASSWORD: $(TEST_USER_PASSWORD)
-              TEST_ADMIN_EMAIL: $(TEST_ADMIN_EMAIL)
-              TEST_ADMIN_PASSWORD: $(TEST_ADMIN_PASSWORD)
-              TEST_ORGANIZER_EMAIL: $(TEST_ORGANIZER_EMAIL)
-              TEST_ORGANIZER_PASSWORD: $(TEST_ORGANIZER_PASSWORD)
-              TEST_VIEWER_EMAIL: $(TEST_VIEWER_EMAIL)
-              TEST_VIEWER_PASSWORD: $(TEST_VIEWER_PASSWORD)
+              TEST_SHARED_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_SHARED_PASSWORD: $(TEST_SHARED_PASSWORD)
+              TEST_USER_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_USER_PASSWORD: $(TEST_SHARED_PASSWORD)
+              TEST_ADMIN_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_ADMIN_PASSWORD: $(TEST_SHARED_PASSWORD)
+              TEST_ORGANIZER_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_ORGANIZER_PASSWORD: $(TEST_SHARED_PASSWORD)
+              TEST_VIEWER_EMAIL: $(TEST_SHARED_EMAIL)
+              TEST_VIEWER_PASSWORD: $(TEST_SHARED_PASSWORD)
               TestSettings__Browser: $(browser)
               TestSettings__Headless: 'true'
 

@@ -83,14 +83,16 @@ jobs:
 
       - name: Run API Tests
         env:
-          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_ORGANIZER_EMAIL }}
-          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_ORGANIZER_PASSWORD }}
-          TEST_VIEWER_EMAIL: ${{ secrets.TEST_VIEWER_EMAIL }}
-          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_VIEWER_PASSWORD }}
+          TEST_SHARED_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_SHARED_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           MANUAL_SUITE: ${{ github.event.inputs.suite }}
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
@@ -197,34 +199,22 @@ jobs:
 
       - name: Run UI Tests — ${{ matrix.browser }}
         env:
-          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_ORGANIZER_EMAIL }}
-          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_ORGANIZER_PASSWORD }}
-          TEST_VIEWER_EMAIL: ${{ secrets.TEST_VIEWER_EMAIL }}
-          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_VIEWER_PASSWORD }}
+          TEST_SHARED_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_SHARED_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
-          MANUAL_SUITE: ${{ github.event.inputs.suite }}
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
-          if [ -n "$MANUAL_SUITE" ]; then
-            SUITE="$MANUAL_SUITE"
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            SUITE="smoke"
-          elif [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.ref_name }}" = "develop" ]; then
-            SUITE="full"
-          else
-            SUITE="smoke"
-          fi
-
-          if [ "$SUITE" = "smoke" ]; then
-            COMMON_FILTER="Category=High&Category=Smoke"
-          else
-            COMMON_FILTER=""
-          fi
+          # CI requirement: always run the full UI suite.
+          COMMON_FILTER=""
 
           ROLES=(user admin organizer viewer)
           AVAILABLE_ROLES=()
@@ -244,7 +234,7 @@ jobs:
             exit 1
           fi
 
-          echo "Running UI suite: $SUITE on browser ${{ matrix.browser }}"
+          echo "Running full UI suite on browser ${{ matrix.browser }}"
           echo "Available roles: ${AVAILABLE_ROLES[*]}"
 
           ROLE_AGNOSTIC_FILTER="Category!=user&Category!=admin&Category!=organizer&Category!=viewer"

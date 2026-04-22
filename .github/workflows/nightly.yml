@@ -80,14 +80,16 @@ jobs:
 
       - name: Run API Tests
         env:
-          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_ORGANIZER_EMAIL }}
-          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_ORGANIZER_PASSWORD }}
-          TEST_VIEWER_EMAIL: ${{ secrets.TEST_VIEWER_EMAIL }}
-          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_VIEWER_PASSWORD }}
+          TEST_SHARED_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_SHARED_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           SUITE: ${{ github.event.inputs.suite || 'full' }}
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
@@ -202,14 +204,16 @@ jobs:
       - name: Run UI Tests — ${{ matrix.browser }} (Linux)
         if: runner.os == 'Linux'
         env:
-          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_ORGANIZER_EMAIL }}
-          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_ORGANIZER_PASSWORD }}
-          TEST_VIEWER_EMAIL: ${{ secrets.TEST_VIEWER_EMAIL }}
-          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_VIEWER_PASSWORD }}
+          TEST_SHARED_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_SHARED_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           SUITE: ${{ github.event.inputs.suite || 'full' }}
@@ -268,14 +272,16 @@ jobs:
       - name: Run UI Tests — ${{ matrix.browser }} (Windows)
         if: runner.os == 'Windows'
         env:
-          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_ORGANIZER_EMAIL }}
-          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_ORGANIZER_PASSWORD }}
-          TEST_VIEWER_EMAIL: ${{ secrets.TEST_VIEWER_EMAIL }}
-          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_VIEWER_PASSWORD }}
+          TEST_SHARED_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_SHARED_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_ORGANIZER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_ORGANIZER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
+          TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
+          TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}\.ci\allure-results-ui-${{ matrix.browser }}
