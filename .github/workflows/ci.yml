@@ -2,14 +2,11 @@
 # Runs on every push to main/develop and on every pull request targeting those branches.
 # Pull requests execute smoke tests only (Category=High&Category=Smoke) for fast feedback.
 # Push to main/develop executes the full test suite on all supported browsers.
-# NOTE: ci_report_fix branch is temporarily included for report-fix validation only.
-# TODO: Remove ci_report_fix from triggers once merged and validated.
-
 name: CI
 
 on:
   push:
-    branches: [main, develop, ci_report_fix]
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
