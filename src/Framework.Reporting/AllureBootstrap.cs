@@ -158,18 +158,146 @@ public static class AllureBootstrap
 
     private static void WriteExecutorInfo()
     {
-        var payload = new
+        var payload = BuildExecutorPayload();
+        var json = JsonConvert.SerializeObject(payload, Formatting.Indented,
+            new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore
+            });
+
+        WriteExecutorFile(ResultsDirectory, json);
+        WriteExecutorFile(SharedResultsDirectory, json);
+    }
+
+    private static object BuildExecutorPayload()
+    {
+        var defaultBuildOrder = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        if (string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            var runNumber = Environment.GetEnvironmentVariable("GITHUB_RUN_NUMBER");
+            var runId = Environment.GetEnvironmentVariable("GITHUB_RUN_ID");
+            var runAttempt = Environment.GetEnvironmentVariable("GITHUB_RUN_ATTEMPT");
+            var workflow = Environment.GetEnvironmentVariable("GITHUB_WORKFLOW");
+            var repository = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY");
+            var serverUrl = Environment.GetEnvironmentVariable("GITHUB_SERVER_URL");
+            var buildUrl = BuildGitHubRunUrl(serverUrl, repository, runId);
+
+            return new
+            {
+                name = "GitHub Actions",
+                type = "github",
+                reportName = !string.IsNullOrWhiteSpace(runNumber)
+                    ? $"Selenium Automation Framework Allure Report - Run #{runNumber}"
+                    : "Selenium Automation Framework Allure Report",
+                buildName = !string.IsNullOrWhiteSpace(runNumber)
+                    ? $"Run #{runNumber}"
+                    : workflow ?? "GitHub Actions Run",
+                buildOrder = ParseLongOrDefault(runNumber)
+                    ?? ParseLongOrDefault(runId)
+                    ?? defaultBuildOrder,
+                buildUrl,
+                reportUrl = buildUrl,
+                description = BuildGitHubDescription(workflow, runAttempt)
+            };
+        }
+
+        if (string.Equals(Environment.GetEnvironmentVariable("TF_BUILD"), "True", StringComparison.OrdinalIgnoreCase))
+        {
+            var buildNumber = Environment.GetEnvironmentVariable("BUILD_BUILDNUMBER");
+            var buildId = Environment.GetEnvironmentVariable("BUILD_BUILDID");
+            var definitionName = Environment.GetEnvironmentVariable("BUILD_DEFINITIONNAME");
+            var collectionUri = Environment.GetEnvironmentVariable("SYSTEM_COLLECTIONURI");
+            var teamProject = Environment.GetEnvironmentVariable("SYSTEM_TEAMPROJECT");
+            var buildUrl = BuildAzureRunUrl(collectionUri, teamProject, buildId);
+
+            return new
+            {
+                name = "Azure Pipelines",
+                type = "azure",
+                reportName = !string.IsNullOrWhiteSpace(buildNumber)
+                    ? $"Selenium Automation Framework Allure Report - Build {buildNumber}"
+                    : "Selenium Automation Framework Allure Report",
+                buildName = !string.IsNullOrWhiteSpace(buildNumber)
+                    ? buildNumber
+                    : definitionName ?? "Azure Pipeline Build",
+                buildOrder = ParseLongOrDefault(buildId)
+                    ?? ParseLongOrDefault(buildNumber)
+                    ?? defaultBuildOrder,
+                buildUrl,
+                reportUrl = buildUrl,
+                description = definitionName
+            };
+        }
+
+        return new
         {
             name = "Local Automation Execution",
             type = "dotnet",
             reportName = "Selenium Automation Framework Allure Report",
             buildName = DetectTestFramework(),
-            buildOrder = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            buildOrder = defaultBuildOrder
         };
+    }
 
-        File.WriteAllText(
-            Path.Combine(ResultsDirectory, "executor.json"),
-            JsonConvert.SerializeObject(payload, Formatting.Indented));
+    private static void WriteExecutorFile(string outputDirectory, string json)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        File.WriteAllText(Path.Combine(outputDirectory, "executor.json"), json);
+    }
+
+    private static string? BuildGitHubRunUrl(string? serverUrl, string? repository, string? runId)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl)
+            || string.IsNullOrWhiteSpace(repository)
+            || string.IsNullOrWhiteSpace(runId))
+        {
+            return null;
+        }
+
+        return $"{serverUrl.TrimEnd('/')}/{repository}/actions/runs/{runId}";
+    }
+
+    private static string? BuildAzureRunUrl(string? collectionUri, string? teamProject, string? buildId)
+    {
+        if (string.IsNullOrWhiteSpace(collectionUri)
+            || string.IsNullOrWhiteSpace(teamProject)
+            || string.IsNullOrWhiteSpace(buildId))
+        {
+            return null;
+        }
+
+        return $"{collectionUri.TrimEnd('/')}/{teamProject}/_build/results?buildId={buildId}&view=results";
+    }
+
+    private static long? ParseLongOrDefault(string? value)
+    {
+        if (long.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    private static string? BuildGitHubDescription(string? workflow, string? runAttempt)
+    {
+        if (string.IsNullOrWhiteSpace(workflow) && string.IsNullOrWhiteSpace(runAttempt))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(runAttempt))
+        {
+            return workflow;
+        }
+
+        if (string.IsNullOrWhiteSpace(workflow))
+        {
+            return $"Attempt {runAttempt}";
+        }
+
+        return $"{workflow} - Attempt {runAttempt}";
     }
 
     private static void WriteCategories()
