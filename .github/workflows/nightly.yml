@@ -86,13 +86,16 @@ jobs:
           TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           SUITE: ${{ github.event.inputs.suite || 'full' }}
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
           if [ "$SUITE" = "smoke" ]; then
             COMMON_FILTER="Category=High&Category=Smoke"
           else
             COMMON_FILTER=""
           fi
+
+          API_RESULTS_DIR="${GITHUB_WORKSPACE}/.ci/allure-results-api"
+          rm -rf "${API_RESULTS_DIR}" "${GITHUB_WORKSPACE}"/.ci/allure-results-api-*
+          mkdir -p "${API_RESULTS_DIR}"
 
           ROLES=(user admin organizer viewer)
           AVAILABLE_ROLES=()
@@ -122,7 +125,11 @@ jobs:
             FILTER="$ROLE_AGNOSTIC_FILTER"
           fi
           echo "Running role-agnostic API tests with filter: $FILTER"
-          dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+          RUN_RESULTS_DIR="${GITHUB_WORKSPACE}/.ci/allure-results-api-role-agnostic"
+          rm -rf "${RUN_RESULTS_DIR}"
+          mkdir -p "${RUN_RESULTS_DIR}"
+          ALLURE_RESULTS_DIRECTORY="${RUN_RESULTS_DIR}" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+          cp -r "${RUN_RESULTS_DIR}"/. "${API_RESULTS_DIR}"/ 2>/dev/null || true
 
           for role in "${AVAILABLE_ROLES[@]}"; do
             ROLE_FILTER="Category=$role"
@@ -132,7 +139,11 @@ jobs:
               FILTER="$ROLE_FILTER"
             fi
             echo "Running API tests for role '$role' with filter: $FILTER"
-            TEST_EXECUTION_ROLE="$role" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+            RUN_RESULTS_DIR="${GITHUB_WORKSPACE}/.ci/allure-results-api-${role}"
+            rm -rf "${RUN_RESULTS_DIR}"
+            mkdir -p "${RUN_RESULTS_DIR}"
+            TEST_EXECUTION_ROLE="$role" ALLURE_RESULTS_DIRECTORY="${RUN_RESULTS_DIR}" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+            cp -r "${RUN_RESULTS_DIR}"/. "${API_RESULTS_DIR}"/ 2>/dev/null || true
           done
 
       - name: Prepare API Allure Artifacts
@@ -210,13 +221,16 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           SUITE: ${{ github.event.inputs.suite || 'full' }}
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
           if [ "$SUITE" = "smoke" ]; then
             COMMON_FILTER="Category=High&Category=Smoke"
           else
             COMMON_FILTER=""
           fi
+
+          UI_RESULTS_DIR="${GITHUB_WORKSPACE}/.ci/allure-results-ui-${{ matrix.browser }}"
+          rm -rf "${UI_RESULTS_DIR}" "${GITHUB_WORKSPACE}"/.ci/allure-results-ui-${{ matrix.browser }}-*
+          mkdir -p "${UI_RESULTS_DIR}"
 
           ROLES=(user admin organizer viewer)
           AVAILABLE_ROLES=()
@@ -246,7 +260,11 @@ jobs:
             FILTER="$ROLE_AGNOSTIC_FILTER"
           fi
           echo "Running role-agnostic UI tests with filter: $FILTER"
-          dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+          RUN_RESULTS_DIR="${GITHUB_WORKSPACE}/.ci/allure-results-ui-${{ matrix.browser }}-role-agnostic"
+          rm -rf "${RUN_RESULTS_DIR}"
+          mkdir -p "${RUN_RESULTS_DIR}"
+          ALLURE_RESULTS_DIRECTORY="${RUN_RESULTS_DIR}" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+          cp -r "${RUN_RESULTS_DIR}"/. "${UI_RESULTS_DIR}"/ 2>/dev/null || true
 
           for role in "${AVAILABLE_ROLES[@]}"; do
             ROLE_FILTER="Category=$role"
@@ -256,7 +274,11 @@ jobs:
               FILTER="$ROLE_FILTER"
             fi
             echo "Running UI tests for role '$role' with filter: $FILTER"
-            TEST_EXECUTION_ROLE="$role" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+            RUN_RESULTS_DIR="${GITHUB_WORKSPACE}/.ci/allure-results-ui-${{ matrix.browser }}-${role}"
+            rm -rf "${RUN_RESULTS_DIR}"
+            mkdir -p "${RUN_RESULTS_DIR}"
+            TEST_EXECUTION_ROLE="$role" ALLURE_RESULTS_DIRECTORY="${RUN_RESULTS_DIR}" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+            cp -r "${RUN_RESULTS_DIR}"/. "${UI_RESULTS_DIR}"/ 2>/dev/null || true
           done
 
       - name: Prepare UI Allure Artifacts (Linux)
@@ -282,7 +304,6 @@ jobs:
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}\.ci\allure-results-ui-${{ matrix.browser }}
         shell: pwsh
         run: |
           $suite = "${{ github.event.inputs.suite }}"
@@ -292,6 +313,14 @@ jobs:
           } else {
             $commonFilter = ""
           }
+
+          $uiResultsDir = Join-Path $env:GITHUB_WORKSPACE ".ci/allure-results-ui-${{ matrix.browser }}"
+          if (Test-Path $uiResultsDir) {
+            Remove-Item -Path $uiResultsDir -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          New-Item -ItemType Directory -Force -Path $uiResultsDir | Out-Null
+          Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE ".ci") -Directory -Filter "allure-results-ui-${{ matrix.browser }}-*" -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
           $roles = @('user', 'admin', 'organizer', 'viewer')
           $availableRoles = @()
@@ -318,7 +347,14 @@ jobs:
             $filter = $roleAgnosticFilter
           }
           Write-Host "Running role-agnostic UI tests with filter: $filter"
+          $runResultsDir = Join-Path $env:GITHUB_WORKSPACE ".ci/allure-results-ui-${{ matrix.browser }}-role-agnostic"
+          if (Test-Path $runResultsDir) {
+            Remove-Item -Path $runResultsDir -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          New-Item -ItemType Directory -Force -Path $runResultsDir | Out-Null
+          $env:ALLURE_RESULTS_DIRECTORY = $runResultsDir
           dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$filter"
+          Copy-Item -Path (Join-Path $runResultsDir "*") -Destination $uiResultsDir -Recurse -Force -ErrorAction SilentlyContinue
 
           foreach ($role in $availableRoles) {
             $roleFilter = "Category=$role"
@@ -328,8 +364,15 @@ jobs:
               $filter = $roleFilter
             }
             Write-Host "Running UI tests for role '$role' with filter: $filter"
+            $runResultsDir = Join-Path $env:GITHUB_WORKSPACE ".ci/allure-results-ui-${{ matrix.browser }}-$role"
+            if (Test-Path $runResultsDir) {
+              Remove-Item -Path $runResultsDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            New-Item -ItemType Directory -Force -Path $runResultsDir | Out-Null
             $env:TEST_EXECUTION_ROLE = $role
+            $env:ALLURE_RESULTS_DIRECTORY = $runResultsDir
             dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$filter"
+            Copy-Item -Path (Join-Path $runResultsDir "*") -Destination $uiResultsDir -Recurse -Force -ErrorAction SilentlyContinue
           }
 
       - name: Prepare UI Allure Artifacts (Windows)
