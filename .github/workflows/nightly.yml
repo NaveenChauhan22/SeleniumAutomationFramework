@@ -138,7 +138,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-api
-          path: .ci/allure-results-api/
+          path: reports/allure-results/
           retention-days: 7
 
   # ── 3. UI Tests (cross-browser matrix, ubuntu + windows for Edge) ─────────────
@@ -200,7 +200,6 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           SUITE: ${{ github.event.inputs.suite || 'full' }}
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
           if [ "$SUITE" = "smoke" ]; then
             COMMON_FILTER="Category=High&Category=Smoke"
@@ -240,14 +239,6 @@ jobs:
             TEST_EXECUTION_ROLE="$DEFAULT_ROLE" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           fi
 
-      - name: Prepare UI Allure Artifacts (Linux)
-        if: always() && runner.os == 'Linux'
-        run: |
-          mkdir -p .ci/allure-results-ui-${{ matrix.browser }}
-          rm -f .ci/allure-results-ui-${{ matrix.browser }}/executor.json
-          echo "UI (${{ matrix.browser }}) Allure result files:"
-          find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l || echo "0"
-
       - name: Run UI Tests — ${{ matrix.browser }} (Windows)
         if: runner.os == 'Windows'
         env:
@@ -263,7 +254,6 @@ jobs:
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}\.ci\allure-results-ui-${{ matrix.browser }}
         shell: pwsh
         run: |
           $suite = "${{ github.event.inputs.suite }}"
@@ -304,22 +294,12 @@ jobs:
             dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           }
 
-      - name: Prepare UI Allure Artifacts (Windows)
-        if: always() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $path = ".ci/allure-results-ui-${{ matrix.browser }}"
-          New-Item -ItemType Directory -Force -Path $path | Out-Null
-          Remove-Item -Path (Join-Path $path "executor.json") -Force -ErrorAction SilentlyContinue
-          Write-Host "UI (${{ matrix.browser }}) Allure result files:"
-          (Get-ChildItem $path -Recurse -File | Measure-Object).Count
-
       - name: Upload Allure Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-ui-${{ matrix.browser }}
-          path: .ci/allure-results-ui-${{ matrix.browser }}/
+          path: reports/allure-results/
           retention-days: 7
 
   # ── 4. Allure Report (combined across all jobs) ───────────────────────────────
@@ -348,7 +328,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .ci/allure-history
-          key: ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-
 
@@ -411,7 +391,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .ci/allure-history
-          key: ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload Merged Allure Raw Results
         uses: actions/upload-artifact@v4
