@@ -139,9 +139,6 @@ jobs:
         if: always()
         run: |
           mkdir -p .ci/allure-results-api
-          if [ -d "reports/allure-results" ]; then
-            cp -r reports/allure-results/* .ci/allure-results-api/ 2>/dev/null || true
-          fi
           echo "API Allure result files:"
           find .ci/allure-results-api -type f | wc -l || echo "0"
 
@@ -265,9 +262,6 @@ jobs:
         if: always() && runner.os == 'Linux'
         run: |
           mkdir -p .ci/allure-results-ui-${{ matrix.browser }}
-          if [ -d "reports/allure-results" ]; then
-            cp -r reports/allure-results/* .ci/allure-results-ui-${{ matrix.browser }}/ 2>/dev/null || true
-          fi
           echo "UI (${{ matrix.browser }}) Allure result files:"
           find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l || echo "0"
 
@@ -342,9 +336,6 @@ jobs:
         run: |
           $path = ".ci/allure-results-ui-${{ matrix.browser }}"
           New-Item -ItemType Directory -Force -Path $path | Out-Null
-          if (Test-Path "reports/allure-results") {
-            Copy-Item -Path "reports/allure-results/*" -Destination $path -Recurse -Force -ErrorAction SilentlyContinue
-          }
           Write-Host "UI (${{ matrix.browser }}) Allure result files:"
           (Get-ChildItem $path -Recurse -File | Measure-Object).Count
 
@@ -395,6 +386,22 @@ jobs:
           else
             echo "No previous history cache found."
           fi
+
+      - name: Normalize executor metadata for nightly run
+        run: |
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          cat > .ci/allure-results-merged/executor.json <<EOF
+          {
+            "name": "GitHub Actions",
+            "type": "github",
+            "reportName": "Selenium Automation Framework Allure Report - Run #${GITHUB_RUN_NUMBER}",
+            "buildName": "Run #${GITHUB_RUN_NUMBER}",
+            "buildOrder": ${GITHUB_RUN_NUMBER},
+            "buildUrl": "${RUN_URL}",
+            "reportUrl": "${RUN_URL}",
+            "description": "${GITHUB_WORKFLOW} (attempt ${GITHUB_RUN_ATTEMPT})"
+          }
+          EOF
 
       - name: Install Allure CLI
         run: |
