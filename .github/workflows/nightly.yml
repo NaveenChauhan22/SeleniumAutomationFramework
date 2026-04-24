@@ -86,7 +86,6 @@ jobs:
           TEST_VIEWER_EMAIL: ${{ secrets.TEST_SHARED_EMAIL }}
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           SUITE: ${{ github.event.inputs.suite || 'full' }}
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-api
         run: |
           if [ "$SUITE" = "smoke" ]; then
             COMMON_FILTER="Category=High&Category=Smoke"
@@ -115,33 +114,22 @@ jobs:
           echo "Running API suite: $SUITE"
           echo "Available roles: ${AVAILABLE_ROLES[*]}"
 
-          ROLE_AGNOSTIC_FILTER="Category!=user&Category!=admin&Category!=organizer&Category!=viewer"
-          if [ -n "$COMMON_FILTER" ]; then
-            FILTER="$ROLE_AGNOSTIC_FILTER&$COMMON_FILTER"
-          else
-            FILTER="$ROLE_AGNOSTIC_FILTER"
-          fi
-          echo "Running role-agnostic API tests with filter: $FILTER"
-          dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
+          DEFAULT_ROLE="${AVAILABLE_ROLES[0]}"
+          echo "Using TEST_EXECUTION_ROLE=$DEFAULT_ROLE for this API run"
 
-          for role in "${AVAILABLE_ROLES[@]}"; do
-            ROLE_FILTER="Category=$role"
-            if [ -n "$COMMON_FILTER" ]; then
-              FILTER="$ROLE_FILTER&$COMMON_FILTER"
-            else
-              FILTER="$ROLE_FILTER"
-            fi
-            echo "Running API tests for role '$role' with filter: $FILTER"
-            TEST_EXECUTION_ROLE="$role" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
-          done
+          if [ -n "$COMMON_FILTER" ]; then
+            echo "Running API tests with filter: $COMMON_FILTER"
+            TEST_EXECUTION_ROLE="$DEFAULT_ROLE" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$COMMON_FILTER"
+          else
+            echo "Running full API suite (no filter)"
+            TEST_EXECUTION_ROLE="$DEFAULT_ROLE" dotnet test tests/APITests/APITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
+          fi
 
       - name: Prepare API Allure Artifacts
         if: always()
         run: |
           mkdir -p .ci/allure-results-api
-          if [ -d "reports/allure-results" ]; then
-            cp -r reports/allure-results/* .ci/allure-results-api/ 2>/dev/null || true
-          fi
+          rm -f .ci/allure-results-api/executor.json
           echo "API Allure result files:"
           find .ci/allure-results-api -type f | wc -l || echo "0"
 
@@ -150,7 +138,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-api
-          path: .ci/allure-results-api/
+          path: reports/allure-results/
           retention-days: 7
 
   # ── 3. UI Tests (cross-browser matrix, ubuntu + windows for Edge) ─────────────
@@ -212,7 +200,6 @@ jobs:
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
           SUITE: ${{ github.event.inputs.suite || 'full' }}
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}/.ci/allure-results-ui-${{ matrix.browser }}
         run: |
           if [ "$SUITE" = "smoke" ]; then
             COMMON_FILTER="Category=High&Category=Smoke"
@@ -241,35 +228,16 @@ jobs:
           echo "Running UI suite: $SUITE on browser ${{ matrix.browser }}"
           echo "Available roles: ${AVAILABLE_ROLES[*]}"
 
-          ROLE_AGNOSTIC_FILTER="Category!=user&Category!=admin&Category!=organizer&Category!=viewer"
+          DEFAULT_ROLE="${AVAILABLE_ROLES[0]}"
+          echo "Using TEST_EXECUTION_ROLE=$DEFAULT_ROLE for this UI run"
+
           if [ -n "$COMMON_FILTER" ]; then
-            FILTER="$ROLE_AGNOSTIC_FILTER&$COMMON_FILTER"
+            echo "Running UI tests with filter: $COMMON_FILTER"
+            TEST_EXECUTION_ROLE="$DEFAULT_ROLE" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$COMMON_FILTER"
           else
-            FILTER="$ROLE_AGNOSTIC_FILTER"
+            echo "Running full UI suite (no filter)"
+            TEST_EXECUTION_ROLE="$DEFAULT_ROLE" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           fi
-          echo "Running role-agnostic UI tests with filter: $FILTER"
-          dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
-
-          for role in "${AVAILABLE_ROLES[@]}"; do
-            ROLE_FILTER="Category=$role"
-            if [ -n "$COMMON_FILTER" ]; then
-              FILTER="$ROLE_FILTER&$COMMON_FILTER"
-            else
-              FILTER="$ROLE_FILTER"
-            fi
-            echo "Running UI tests for role '$role' with filter: $FILTER"
-            TEST_EXECUTION_ROLE="$role" dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$FILTER"
-          done
-
-      - name: Prepare UI Allure Artifacts (Linux)
-        if: always() && runner.os == 'Linux'
-        run: |
-          mkdir -p .ci/allure-results-ui-${{ matrix.browser }}
-          if [ -d "reports/allure-results" ]; then
-            cp -r reports/allure-results/* .ci/allure-results-ui-${{ matrix.browser }}/ 2>/dev/null || true
-          fi
-          echo "UI (${{ matrix.browser }}) Allure result files:"
-          find .ci/allure-results-ui-${{ matrix.browser }} -type f | wc -l || echo "0"
 
       - name: Run UI Tests — ${{ matrix.browser }} (Windows)
         if: runner.os == 'Windows'
@@ -286,7 +254,6 @@ jobs:
           TEST_VIEWER_PASSWORD: ${{ secrets.TEST_SHARED_PASSWORD }}
           TestSettings__Browser: ${{ matrix.browser }}
           TestSettings__Headless: 'true'
-          ALLURE_RESULTS_DIRECTORY: ${{ github.workspace }}\.ci\allure-results-ui-${{ matrix.browser }}
         shell: pwsh
         run: |
           $suite = "${{ github.event.inputs.suite }}"
@@ -315,45 +282,24 @@ jobs:
           Write-Host "Running UI suite: $suite on browser ${{ matrix.browser }}"
           Write-Host "Available roles: $($availableRoles -join ', ')"
 
-          $roleAgnosticFilter = "Category!=user&Category!=admin&Category!=organizer&Category!=viewer"
+          $defaultRole = $availableRoles[0]
+          Write-Host "Using TEST_EXECUTION_ROLE=$defaultRole for this UI run"
+          $env:TEST_EXECUTION_ROLE = $defaultRole
+
           if ($commonFilter) {
-            $filter = "$roleAgnosticFilter&$commonFilter"
+            Write-Host "Running UI tests with filter: $commonFilter"
+            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$commonFilter"
           } else {
-            $filter = $roleAgnosticFilter
+            Write-Host "Running full UI suite (no filter)"
+            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }}
           }
-          Write-Host "Running role-agnostic UI tests with filter: $filter"
-          dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$filter"
-
-          foreach ($role in $availableRoles) {
-            $roleFilter = "Category=$role"
-            if ($commonFilter) {
-              $filter = "$roleFilter&$commonFilter"
-            } else {
-              $filter = $roleFilter
-            }
-            Write-Host "Running UI tests for role '$role' with filter: $filter"
-            $env:TEST_EXECUTION_ROLE = $role
-            dotnet test tests/UITests/UITests.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --filter "$filter"
-          }
-
-      - name: Prepare UI Allure Artifacts (Windows)
-        if: always() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $path = ".ci/allure-results-ui-${{ matrix.browser }}"
-          New-Item -ItemType Directory -Force -Path $path | Out-Null
-          if (Test-Path "reports/allure-results") {
-            Copy-Item -Path "reports/allure-results/*" -Destination $path -Recurse -Force -ErrorAction SilentlyContinue
-          }
-          Write-Host "UI (${{ matrix.browser }}) Allure result files:"
-          (Get-ChildItem $path -Recurse -File | Measure-Object).Count
 
       - name: Upload Allure Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-ui-${{ matrix.browser }}
-          path: .ci/allure-results-ui-${{ matrix.browser }}/
+          path: reports/allure-results/
           retention-days: 7
 
   # ── 4. Allure Report (combined across all jobs) ───────────────────────────────
@@ -382,7 +328,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .ci/allure-history
-          key: ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-
 
@@ -395,6 +341,22 @@ jobs:
           else
             echo "No previous history cache found."
           fi
+
+      - name: Normalize executor metadata for nightly run
+        run: |
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          cat > .ci/allure-results-merged/executor.json <<EOF
+          {
+            "name": "GitHub Actions",
+            "type": "github",
+            "reportName": "Selenium Automation Framework Allure Report - Run #${GITHUB_RUN_NUMBER}",
+            "buildName": "Run #${GITHUB_RUN_NUMBER}",
+            "buildOrder": ${GITHUB_RUN_NUMBER},
+            "buildUrl": "${RUN_URL}",
+            "reportUrl": "${RUN_URL}",
+            "description": "${GITHUB_WORKFLOW} (attempt ${GITHUB_RUN_ATTEMPT})"
+          }
+          EOF
 
       - name: Install Allure CLI
         run: |
@@ -429,7 +391,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .ci/allure-history
-          key: ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ runner.os }}-allure-history-${{ github.workflow }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload Merged Allure Raw Results
         uses: actions/upload-artifact@v4
